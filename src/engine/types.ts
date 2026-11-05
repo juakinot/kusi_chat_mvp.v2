@@ -1,10 +1,11 @@
-export type Sector = 'Bajo' | 'Alto';
+export type Sector = 'Bajo' | 'Alto' | 'Medio' | 'Cabecera';
 
 export interface Productor {
   id: string;
   nombre: string;
   telefono: string;
   consentimiento: boolean;
+  ficticio?: boolean; // en esta demo, todas las personas son inventadas
 }
 
 export type ReservorioEstado = 'con_agua' | 'vacio' | 'desconocido';
@@ -28,6 +29,7 @@ export interface Parcela {
   reservorioEstado: ReservorioEstado;
   planAprobado?: string; // texto del paso acordado con el agrónomo
   cuota?: Cuota;
+  relleno?: boolean; // parcela sintética del escenario: no aparece como perfil de la demo
 }
 
 export interface EventoAgua {
@@ -56,7 +58,9 @@ export interface Regla {
 export type EstadoCaso =
   | 'pendiente_respuesta'
   | 'accion_sugerida'
-  | 'revision_tecnica'
+  | 'revision_tecnica' // derivado: espera que el especialista lo tome
+  | 'en_revision' // el especialista lo tomó
+  | 'seguimiento_programado' // el especialista respondió y fijó fecha
   | 'seguimiento_pendiente'
   | 'cerrado'
   | 'vencido'
@@ -78,6 +82,12 @@ export type PasoConversacion =
 /** Motivo de la consulta. */
 export type Tema = 'agua' | 'plaga' | 'dano' | 'pago' | 'persona';
 
+/** Qué dijo el productor sobre el agua. Sin dato, la parcela cuenta como "sin respuesta". */
+export type SituacionAgua = 'ya_rego' | 'con_alternativa' | 'sin_alternativa';
+
+/** Por qué no tiene alternativa. Es lo que la organización ve en conjunto. */
+export type Barrera = 'reservorio_vacio' | 'sin_reservorio' | 'no_confirmado';
+
 export interface Caso {
   id: string;
   parcelaId: string;
@@ -95,6 +105,8 @@ export interface Caso {
   conteoNoSe: number;
   reglaId?: string; // última regla aplicada
   reglaVersion?: number;
+  situacion?: SituacionAgua;
+  barrera?: Barrera;
 }
 
 export interface BotonRespuesta {
@@ -153,6 +165,25 @@ export interface EventoBloqueado {
   porReglaSuspendida?: boolean; // se puede reenviar al reactivar la regla
 }
 
+/** Distribución de las parcelas afectadas por un aviso. Siempre se calcula desde los casos. */
+export interface ResumenAgua {
+  total: number;
+  yaRegaron: number;
+  conAlternativa: number;
+  sinAlternativa: number;
+  sinRespuesta: number;
+}
+
+export type NecesidadId = 'sin_alternativa' | 'sin_respuesta' | 'reportes';
+
+/** Nota de la organización. Es un pendiente: no afirma que algo se haya coordinado. */
+export interface NotaCoordinacion {
+  id: string;
+  necesidad: NecesidadId;
+  detalle: string;
+  hora: string;
+}
+
 /** Todo el estado de la demo. Serializable: en el piloto vive en la base de datos. */
 export interface Estado {
   inicio: string; // hora simulada al reiniciar la demo
@@ -167,6 +198,8 @@ export interface Estado {
   mensajes: Mensaje[];
   auditoria: EntradaAuditoria[];
   registro: Registro;
+  coordinacion: NotaCoordinacion[];
+  lineaBase?: ResumenAgua; // cómo arrancó el escenario, para mostrar qué cambió
 }
 
 export interface Resultado {

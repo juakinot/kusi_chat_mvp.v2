@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { INGENIERO, PARCELA_NUEVA, fechaLocal, formatoHora } from '../engine/engine';
 import type { Mensaje } from '../engine/types';
+import { estadoSolicitud } from '../engine/vistas';
 import { useStore } from '../state/store';
 import { SaleComparator } from './SaleComparator';
 
@@ -17,14 +18,14 @@ function Ticks({ estado }: { estado: Mensaje['estadoEnvio'] }) {
 
 function Burbuja({ m, onBoton }: { m: Mensaje; onBoton: (m: Mensaje, botonId: string) => void }) {
   const delProductor = m.de === 'productor';
-  const fondo = delProductor ? 'bg-white' : m.de === 'agronomo' ? 'bg-amber-100' : 'bg-[#d9fdd3]';
+  const fondo = delProductor ? 'bg-[#d9fdd3]' : m.de === 'agronomo' ? 'bg-amber-100' : 'bg-white';
   return (
     <div className={`flex flex-col ${delProductor ? 'items-end' : 'items-start'}`}>
       <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm ${fondo}`}>
         {m.de === 'agronomo' && <p className="mb-0.5 text-sm font-bold text-amber-900">{INGENIERO}</p>}
         <p className="whitespace-pre-line break-words text-[15px] leading-snug text-stone-900">{m.texto}</p>
         <p className="mt-1 flex justify-end gap-1 text-sm text-stone-600">
-          {formatoHora(m.hora)} <Ticks estado={m.estadoEnvio} />
+          {formatoHora(m.hora)} {delProductor && <Ticks estado={m.estadoEnvio} />}
         </p>
       </div>
       {m.botones && (
@@ -33,7 +34,7 @@ function Burbuja({ m, onBoton }: { m: Mensaje; onBoton: (m: Mensaje, botonId: st
             <button
               key={b.id}
               onClick={() => onBoton(m, b.id)}
-              className="min-h-11 rounded-lg border border-oliva/40 bg-white px-3 py-2 text-[15px] font-semibold text-oliva-oscuro shadow-sm hover:bg-oliva-claro"
+              className="min-h-12 rounded-xl border border-oliva/40 bg-white px-3 py-2 text-base font-semibold text-oliva-oscuro shadow-sm hover:bg-oliva-claro"
             >
               {b.etiqueta}
             </button>
@@ -53,6 +54,7 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
   const parcela = estado.parcelas.find((p) => p.id === parcelaId);
   const productor = estado.productores.find((p) => p.id === parcela?.productorId);
   const mensajes = estado.mensajes.filter((m) => m.parcelaId === parcelaId);
+  const solicitud = parcela ? estadoSolicitud(estado, parcelaId) : null;
 
   useEffect(() => {
     setVista('chat');
@@ -63,7 +65,8 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
   }, [mensajes.length, parcelaId, vista]);
 
   const pulsar = (m: Mensaje, botonId: string) => {
-    if (m.casoId) dispatch({ type: 'RESPONDER', casoId: m.casoId, respuestaId: botonId });
+    if (botonId === 'venta') setVista('venta');
+    else if (m.casoId) dispatch({ type: 'RESPONDER', casoId: m.casoId, respuestaId: botonId });
     else dispatch({ type: 'CONSULTA', parcelaId, consultaId: botonId });
   };
 
@@ -77,41 +80,33 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
 
   return (
     <div className="mx-auto w-full max-w-[390px] rounded-[2rem] border-[7px] border-stone-800 bg-stone-800 shadow-lg">
-      <div className="flex h-[calc(100dvh-13rem)] min-h-[520px] max-h-[720px] flex-col overflow-hidden rounded-[1.5rem] bg-[#efe7dd]">
+      <div className="flex h-[calc(100dvh-16.5rem)] min-h-[470px] max-h-[720px] lg:h-[calc(100dvh-14rem)] flex-col overflow-hidden rounded-[1.5rem] bg-[#efe7dd]">
         <header className="flex items-center gap-3 bg-oliva px-4 py-3 text-white">
           <div aria-hidden className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 font-bold">
             K
           </div>
           <div className="min-w-0">
-            <p className="font-semibold leading-tight">KUSI · KUSICHAT</p>
+            <p className="font-semibold leading-tight">KUSI</p>
             <p className="truncate text-sm text-white/90">
-              {parcela ? `Teléfono de ${productor?.nombre} · ${parcela.alias}` : 'Número sin registrar'}
+              {parcela ? `${productor?.nombre} · ${parcela.alias}` : 'Número sin registrar'}
             </p>
           </div>
         </header>
 
-        <div role="tablist" aria-label="Vista del teléfono" className="flex bg-oliva-oscuro text-sm font-semibold">
-          {(
-            [
-              ['chat', 'Chat'],
-              ['venta', 'Venta'],
-            ] as const
-          ).map(([id, etiqueta]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={vista === id}
-              onClick={() => setVista(id)}
-              className={`min-h-11 flex-1 border-b-2 ${
-                vista === id ? 'border-white text-white' : 'border-transparent text-white/80'
-              }`}
-            >
-              {etiqueta}
-            </button>
-          ))}
-        </div>
+        {solicitud && vista === 'chat' && (
+          <div role="status" className="border-b border-stone-300 bg-white px-4 py-2">
+            <p className="text-sm font-bold leading-tight text-oliva-oscuro">Tu caso: {solicitud.titulo}</p>
+            <p className="text-sm leading-tight text-stone-700">{solicitud.detalle}</p>
+          </div>
+        )}
 
         <div className={vista === 'venta' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+          <button
+            onClick={() => setVista('chat')}
+            className="min-h-11 border-b border-stone-300 bg-white px-4 text-left text-sm font-semibold text-oliva-oscuro"
+          >
+            ← Volver al chat
+          </button>
           <SaleComparator />
         </div>
 
@@ -150,16 +145,16 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
             {parcela && (
               <button
                 onClick={() => dispatch({ type: 'MENU', parcelaId })}
-                className="min-h-11 rounded-lg border border-oliva bg-white px-3 text-sm font-bold tracking-wide text-oliva-oscuro hover:bg-oliva-claro"
+                className="min-h-11 rounded-lg border border-oliva bg-white px-3 text-sm font-semibold text-oliva-oscuro hover:bg-oliva-claro"
               >
-                MENÚ
+                Otras consultas
               </button>
             )}
             <button
               onClick={() => dispatch({ type: 'PERSONA', parcelaId })}
-              className="min-h-11 rounded-lg bg-oliva-oscuro px-3 text-sm font-bold tracking-wide text-white hover:bg-oliva"
+              className="min-h-11 rounded-lg bg-oliva-oscuro px-3 text-sm font-semibold text-white hover:bg-oliva"
             >
-              PERSONA
+              Hablar con una persona
             </button>
           </div>
           <form onSubmit={enviar} className="flex gap-2">

@@ -57,7 +57,7 @@ export const REGLAS: Regla[] = [
     activa: true,
     ...VIGENCIA,
     descripcion:
-      'Si el productor reporta una plaga, un daño o menos agua, se abre un caso para el agrónomo. KUSI no diagnostica. Si hay dos reportes iguales en un sector, los casos suben a prioridad alta.',
+      'Si el productor reporta cambios en sus olivos, un daño o menos agua, se abre un caso para el especialista. KUSI no diagnostica. Si hay dos reportes iguales en un sector, los casos suben a prioridad alta.',
   },
   {
     id: 'R-AGE-01',

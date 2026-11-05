@@ -1,16 +1,21 @@
 import { diaRelativo, formatoHora } from '../engine/engine';
 import { useStore } from '../state/store';
 
+const MAXIMO = 120;
+
 export function AuditLog() {
   const { estado } = useStore();
-  const entradas = [...estado.auditoria].reverse();
+  const entradas = [...estado.auditoria].reverse().slice(0, MAXIMO);
 
   if (entradas.length === 0) {
-    return <p className="p-4 text-stone-600">Todavía no hay registros. Pulsa "1. Llega aviso de corte" para empezar.</p>;
+    return <p className="p-4 text-stone-600">Todavía no hay registros.</p>;
   }
 
   return (
     <div>
+      <p className="px-3 py-2 text-sm text-stone-600">
+        Últimos {entradas.length} de {estado.auditoria.length} registros. Incluye lo que el escenario ficticio generó antes de abrir la demo.
+      </p>
       <div className="hidden grid-cols-[7rem_7rem_7rem_1fr_8rem] gap-2 border-b border-stone-300 px-3 pb-2 text-sm font-bold uppercase tracking-wide text-stone-600 md:grid">
         <span>Hora</span>
         <span>Tipo</span>

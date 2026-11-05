@@ -45,13 +45,13 @@ describe('tercer perfil', () => {
   it('menos caudal en el sector Alto: Juan y Elena reciben aviso, Rosa no; la misma respuesta da caminos distintos', () => {
     correr((e) => procesarEvento(e, eventoCaudalAlto(INICIO), e.ahora));
     expect(chat(ROSA)).toHaveLength(0);
-    expect(chat(JUAN)[0].texto).toContain('mañana llegará menos agua al sector Alto');
+    expect(chat(JUAN)[0].texto).toBe('Hola, Juan 🌱. Tenemos un aviso sobre el agua de tu sector para mañana. ¿Ya regaste tus olivos?');
 
     responder(JUAN, 'todavia_no');
     expect(casoDe(JUAN)).toMatchObject({ estado: 'revision_tecnica', motivo: 'No tiene reservorio' });
 
     responder(ELENA, 'todavia_no');
-    expect(ultimo(ELENA)).toBe('¿Tu reservorio tiene agua hoy?');
+    expect(ultimo(ELENA)).toBe('¿Tienes agua disponible en tu reservorio?');
     responder(ELENA, 'si_agua');
     expect(casoDe(ELENA)).toMatchObject({
       estado: 'revision_tecnica',
@@ -76,7 +76,7 @@ describe('plaga', () => {
     expect(casoDe(ROSA)).toMatchObject({ tema: 'plaga', estado: 'pendiente_respuesta' });
     responder(ROSA, 'esta_semana');
     expect(casoDe(ROSA)).toMatchObject({ estado: 'revision_tecnica', prioridad: 'alta', reglaId: 'R-REP-01' });
-    expect(ultimo(ROSA)).toContain('No apliques productos hasta que te responda.');
+    expect(ultimo(ROSA)).toBe('El especialista lo revisará y te escribirá antes de las 7:00 p. m.');
   });
 
   it('dos reportes del mismo sector se cruzan; otro sector no', () => {
@@ -88,8 +88,8 @@ describe('plaga', () => {
 
     consultar(ELENA, 'plaga');
     responder(ELENA, 'mas_tiempo');
-    expect(casoDe(JUAN).motivo).toContain('2 reportes de plaga en el sector Alto');
-    expect(casoDe(ELENA).motivo).toContain('2 reportes de plaga en el sector Alto');
+    expect(casoDe(JUAN).motivo).toContain('2 reportes de cambios en hojas o ramas en el sector Alto');
+    expect(casoDe(ELENA).motivo).toContain('2 reportes de cambios en hojas o ramas en el sector Alto');
     expect(casoDe(ROSA).motivo).not.toContain('reportes');
   });
 });
@@ -179,7 +179,7 @@ describe('cuota de agua', () => {
     responder(ROSA, 'pago_no');
     responder(JUAN, 'pago_no');
     expect(ultimo(ROSA)).toContain('Te lo recuerdo 1 día antes');
-    expect(ultimo(JUAN)).toContain('pulsa PERSONA');
+    expect(ultimo(JUAN)).toContain('pide hablar con una persona');
   });
 
   it('"Ya pagué" apaga los recordatorios', () => {

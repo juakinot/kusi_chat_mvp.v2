@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from 'react';
-import { crearEstadoInicial, eventoCaudalAlto, eventoCorte, eventoSinFuente, eventoVencido } from '../data/seed';
+import { crearEstadoDemo, eventoCaudalAlto, eventoSinFuente, eventoVencido } from '../data/seed';
 import {
   adelantarTiempo,
   alternarRegla,
+  anotarCoordinacion,
   aplicar,
   cambiarReservorio,
   cerrarCaso,
+  fechaLocal,
   iniciarConsulta,
+  marcarEnRevision,
   mostrarMenu,
   pedirPersona,
   procesarEvento,
@@ -15,12 +18,12 @@ import {
   responderComoAgronomo,
   revisarAgenda,
 } from '../engine/engine';
-import type { Estado, ReservorioEstado } from '../engine/types';
+import type { Perfil } from '../engine/permisos';
+import type { Estado, NecesidadId, ReservorioEstado } from '../engine/types';
 
-const CLAVE = 'kusichat-mvp-v3';
+const CLAVE = 'kusichat-2-v1';
 
 export type Accion =
-  | { type: 'AVISO_CORTE' }
   | { type: 'AVISO_CAUDAL' }
   | { type: 'AGENDA' }
   | { type: 'MENU'; parcelaId: string }
@@ -33,16 +36,16 @@ export type Accion =
   | { type: 'RESPONDER'; casoId: string; respuestaId: string }
   | { type: 'PERSONA'; parcelaId: string }
   | { type: 'TEXTO'; parcelaId: string; texto: string }
-  | { type: 'REGLA'; reglaId: string }
-  | { type: 'RESPONDER_AGRONOMO'; casoId: string; texto: string }
-  | { type: 'CERRAR_CASO'; casoId: string }
+  | { type: 'REGLA'; reglaId: string; perfil: Perfil }
+  | { type: 'EN_REVISION'; casoIds: string | string[]; perfil: Perfil }
+  | { type: 'RESPONDER_AGRONOMO'; casoId: string; texto: string; seguimiento?: string; perfil: Perfil }
+  | { type: 'CERRAR_CASO'; casoId: string; perfil: Perfil }
+  | { type: 'COORDINAR'; necesidad: NecesidadId; detalle: string; perfil: Perfil }
   | { type: 'TICK' };
 
 function reducer(e: Estado, a: Accion): Estado {
   const { ahora } = e;
   switch (a.type) {
-    case 'AVISO_CORTE':
-      return aplicar(e, procesarEvento(e, eventoCorte(e.inicio), ahora));
     case 'AVISO_CAUDAL':
       return aplicar(e, procesarEvento(e, eventoCaudalAlto(e.inicio), ahora));
     case 'AGENDA':
@@ -60,7 +63,7 @@ function reducer(e: Estado, a: Accion): Estado {
     case 'ADELANTAR':
       return aplicar(e, adelantarTiempo(e, a.horas));
     case 'REINICIAR':
-      return crearEstadoInicial();
+      return crearEstadoDemo();
     case 'RESPONDER':
       return aplicar(e, procesarRespuesta(e, a.casoId, a.respuestaId, ahora));
     case 'PERSONA':
@@ -68,11 +71,15 @@ function reducer(e: Estado, a: Accion): Estado {
     case 'TEXTO':
       return aplicar(e, procesarTextoLibre(e, a.parcelaId, a.texto, ahora));
     case 'REGLA':
-      return aplicar(e, alternarRegla(e, a.reglaId, ahora));
+      return aplicar(e, alternarRegla(e, a.reglaId, ahora, a.perfil));
+    case 'EN_REVISION':
+      return aplicar(e, marcarEnRevision(e, a.casoIds, ahora, a.perfil));
     case 'RESPONDER_AGRONOMO':
-      return aplicar(e, responderComoAgronomo(e, a.casoId, a.texto, ahora));
+      return aplicar(e, responderComoAgronomo(e, a.casoId, a.texto, ahora, a.seguimiento, a.perfil));
     case 'CERRAR_CASO':
-      return aplicar(e, cerrarCaso(e, a.casoId, ahora));
+      return aplicar(e, cerrarCaso(e, a.casoId, ahora, a.perfil));
+    case 'COORDINAR':
+      return aplicar(e, anotarCoordinacion(e, a.necesidad, a.detalle, ahora, a.perfil));
     case 'TICK':
       return { ...e, ahora: new Date(new Date(ahora).getTime() + 1000).toISOString() };
   }
@@ -81,11 +88,15 @@ function reducer(e: Estado, a: Accion): Estado {
 function cargar(): Estado {
   try {
     const guardado = localStorage.getItem(CLAVE);
-    if (guardado) return JSON.parse(guardado) as Estado;
+    if (guardado) {
+      const estado = JSON.parse(guardado) as Estado;
+      // Una corrida de otro día diría "mañana" por una fecha que ya pasó.
+      if (fechaLocal(estado.inicio) === fechaLocal(new Date().toISOString())) return estado;
+    }
   } catch {
     // Sin almacenamiento la demo sigue en memoria.
   }
-  return crearEstadoInicial();
+  return crearEstadoDemo();
 }
 
 function guardar(estado: Estado) {
@@ -101,7 +112,9 @@ const Contexto = createContext<{ estado: Estado; dispatch: Dispatch<Accion> } | 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [estado, dispatch] = useReducer(reducer, undefined, cargar);
 
-  useEffect(() => guardar(estado), [estado]);
+  // Cada cambio real sube `seq`. Así el reloj no reescribe todo el estado cada segundo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => guardar(estado), [estado.seq]);
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'TICK' }), 1000);

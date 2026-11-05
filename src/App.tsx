@@ -1,48 +1,50 @@
 import { useState } from 'react';
+import { useStore } from './state/store';
 import { AgronomistPanel } from './ui/AgronomistPanel';
-import { ControlBar } from './ui/ControlBar';
+import { ConexionEnVivo } from './ui/ConexionEnVivo';
+import { DemoNav, type Vista } from './ui/DemoNav';
+import { HerramientasDemo } from './ui/HerramientasDemo';
+import { PanelLucia } from './ui/PanelLucia';
 import { PhoneChat } from './ui/PhoneChat';
 
+const ROSA = 'PA-ROSA';
+
 export default function App() {
-  const [chatId, setChatId] = useState('PA-ROSA');
-  const [vistaMovil, setVistaMovil] = useState<'chat' | 'panel'>('chat');
+  const { dispatch } = useStore();
+  const [vista, setVista] = useState<Vista>('rosa');
+  const [chatId, setChatId] = useState(ROSA);
+  const [corrida, setCorrida] = useState(0);
+
+  const irA = (v: Vista) => {
+    setVista(v);
+    if (v === 'rosa') setChatId(ROSA);
+    window.scrollTo({ top: 0 });
+  };
+
+  const reiniciar = () => {
+    dispatch({ type: 'REINICIAR' });
+    setVista('rosa');
+    setChatId(ROSA);
+    setCorrida((n) => n + 1); // las pantallas vuelven a su estado inicial
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10">
-        <p className="bg-amber-200 px-4 py-1.5 text-center text-sm font-semibold text-amber-950">
-          DATOS DE DEMOSTRACIÓN · Personas, avisos y reglas ficticias · Las reglas no tienen validación profesional
-        </p>
-      </header>
-      <ControlBar chatId={chatId} onChat={setChatId} />
+      <DemoNav vista={vista} onVista={irA} onReiniciar={reiniciar} />
 
-      <div className="flex border-b border-stone-200 bg-white lg:hidden" role="tablist" aria-label="Vista">
-        {(
-          [
-            ['chat', 'Teléfono'],
-            ['panel', 'Panel del agrónomo'],
-          ] as const
-        ).map(([id, texto]) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={vistaMovil === id}
-            onClick={() => setVistaMovil(id)}
-            className={`min-h-11 flex-1 border-b-2 text-sm font-semibold ${
-              vistaMovil === id ? 'border-oliva text-oliva-oscuro' : 'border-transparent text-stone-600'
-            }`}
-          >
-            {texto}
-          </button>
-        ))}
-      </div>
-
-      <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[400px_minmax(0,1fr)]">
-        <div className={vistaMovil === 'chat' ? '' : 'hidden lg:block'}>
+      <main key={corrida} className="mx-auto w-full max-w-7xl flex-1 p-3 sm:p-4">
+        <div className={vista === 'rosa' ? 'grid gap-4 lg:grid-cols-[400px_minmax(0,1fr)]' : 'hidden'}>
           <PhoneChat parcelaId={chatId} />
+          <div className="min-w-0 space-y-4">
+            <ConexionEnVivo onVista={irA} />
+            <HerramientasDemo chatId={chatId} onChat={setChatId} />
+          </div>
         </div>
-        <div className={`min-w-0 ${vistaMovil === 'panel' ? '' : 'hidden lg:block'}`}>
+        <div className={vista === 'diego' ? '' : 'hidden'}>
           <AgronomistPanel />
+        </div>
+        <div className={vista === 'lucia' ? '' : 'hidden'}>
+          <PanelLucia />
         </div>
       </main>
     </div>

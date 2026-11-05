@@ -1,66 +1,108 @@
 import { useState } from 'react';
-import { formatoHora, indicadores, ordenarCasos } from '../engine/engine';
+import { formatoHora } from '../engine/engine';
+import type { Caso } from '../engine/types';
+import { bandejaEspecialista, BARRERA, casoNuevo, reportesRelacionados, todosLosCasos } from '../engine/vistas';
 import { useStore } from '../state/store';
 import { AuditLog } from './AuditLog';
 import { CaseDetail } from './CaseDetail';
 import { Comparar } from './Comparar';
-import { cuentaRegresiva, ESTADO_CASO, PRIORIDAD, TEMA } from './etiquetas';
+import { ESTADO_CASO, TEMA, textoPlazo } from './etiquetas';
+import { ReportesRelacionados } from './ReportesRelacionados';
 
-type Pestana = 'bandeja' | 'detalle' | 'comparar' | 'reglas' | 'auditoria';
+const PERFIL = 'especialista';
+const GRUPO = 'reportes';
+
+type Pestana = 'casos' | 'comparar' | 'reglas' | 'auditoria';
 
 const PESTANAS: { id: Pestana; texto: string }[] = [
-  { id: 'bandeja', texto: 'Bandeja' },
-  { id: 'detalle', texto: 'Detalle del caso' },
+  { id: 'casos', texto: 'Casos' },
   { id: 'comparar', texto: 'Comparar' },
   { id: 'reglas', texto: 'Reglas' },
   { id: 'auditoria', texto: 'Auditoría' },
 ];
 
-function Bandeja({ onAbrir }: { onAbrir: (id: string) => void }) {
+function FilaCaso({ caso, activo, onAbrir }: { caso: Caso; activo: boolean; onAbrir: () => void }) {
   const { estado } = useStore();
-  const casos = ordenarCasos(estado.casos);
+  const parcela = estado.parcelas.find((p) => p.id === caso.parcelaId);
+  const productor = estado.productores.find((p) => p.id === parcela?.productorId);
+  const nuevo = casoNuevo(estado, caso);
+  return (
+    <li>
+      <button
+        onClick={onAbrir}
+        aria-current={activo ? 'true' : undefined}
+        className={`block w-full rounded-xl border-2 px-3 py-2 text-left ${
+          activo ? 'border-oliva-oscuro bg-oliva-claro' : nuevo ? 'border-arcilla bg-white' : 'border-transparent bg-white hover:border-stone-300'
+        }`}
+      >
+        <span className="flex items-center justify-between gap-2">
+          <span className="truncate font-semibold">
+            {productor?.nombre} · {caso.barrera ? BARRERA[caso.barrera] : TEMA[caso.tema]}
+          </span>
+          {nuevo ? (
+            <span className="flex-none rounded-full bg-arcilla px-2 text-sm font-bold text-white">Nuevo</span>
+          ) : (
+            <span className="flex-none text-sm font-medium text-stone-600">{ESTADO_CASO[caso.estado]}</span>
+          )}
+        </span>
+        <span className="block text-sm text-stone-600">
+          Sector {parcela?.sector ?? 'sin confirmar'} · {textoPlazo(caso.plazo, estado.ahora)}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function Bandeja({ casoId, onAbrir }: { casoId: string | null; onAbrir: (id: string) => void }) {
+  const { estado } = useStore();
+  const [todos, setTodos] = useState(false);
+  const bandeja = bandejaEspecialista(estado, PERFIL);
+  const reportes = reportesRelacionados(estado, PERFIL);
+  const mayor = reportes.sectores[0];
+  const lista = todos ? todosLosCasos(estado, PERFIL) : bandeja;
 
   return (
-    <div className="space-y-2 p-3">
-      {casos.length === 0 && <p className="text-stone-600">No hay casos todavía.</p>}
-      {casos.map((c) => {
-        const parcela = estado.parcelas.find((p) => p.id === c.parcelaId);
-        const productor = estado.productores.find((p) => p.id === parcela?.productorId);
-        return (
-          <button
-            key={c.id}
-            onClick={() => onAbrir(c.id)}
-            className={`block w-full rounded-lg border p-3 text-left hover:bg-stone-50 ${
-              c.prioridad === 'alta' && c.estado !== 'cerrado' ? 'border-red-300' : 'border-stone-200'
-            }`}
-          >
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="font-bold">
-                {productor?.nombre} · {parcela?.alias}
-              </span>
-              <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${PRIORIDAD[c.prioridad].clase}`}>
-                {PRIORIDAD[c.prioridad].texto}
-              </span>
-              <span className="rounded-full bg-oliva-claro px-2 py-0.5 text-sm font-bold text-oliva-oscuro">
-                {TEMA[c.tema]}
-              </span>
-            </span>
-            <span className="mt-1 block text-sm text-stone-700">
-              {ESTADO_CASO[c.estado]} · {c.motivo}
-            </span>
-            {c.estado !== 'cerrado' && (
-              <span className="mt-0.5 block text-sm font-semibold">{cuentaRegresiva(c.plazo, estado.ahora)}</span>
-            )}
-          </button>
-        );
-      })}
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-2 px-1">
+        <h1 className="font-titulo text-xl font-bold tracking-tight">
+          {todos ? `${lista.length} casos en total` : `${bandeja.length + reportes.casos.length} por atender`}
+        </h1>
+        <button
+          onClick={() => setTodos(!todos)}
+          className="min-h-9 text-sm font-semibold text-stone-600 underline underline-offset-2 hover:text-stone-900"
+        >
+          {todos ? 'Ver por atender' : 'Ver todos'}
+        </button>
+      </div>
+
+      {!todos && reportes.casos.length > 0 && (
+        <button
+          onClick={() => onAbrir(GRUPO)}
+          aria-current={casoId === GRUPO ? 'true' : undefined}
+          className={`block w-full rounded-xl border-2 px-3 py-2 text-left ${
+            casoId === GRUPO ? 'border-oliva-oscuro bg-oliva-claro' : 'border-canal bg-canal-claro hover:border-canal-oscuro'
+          }`}
+        >
+          <span className="block font-semibold">{reportes.casos.length} reportes relacionados</span>
+          <span className="block text-sm text-stone-700">
+            Cambios en hojas o ramas{mayor?.sector ? ` · ${mayor.casos.length} del sector ${mayor.sector}` : ''}
+          </span>
+        </button>
+      )}
+
+      <ul className="space-y-1.5">
+        {lista.map((c) => (
+          <FilaCaso key={c.id} caso={c} activo={c.id === casoId} onAbrir={() => onAbrir(c.id)} />
+        ))}
+      </ul>
+      {lista.length === 0 && <p className="px-1 text-stone-600">No hay casos por atender.</p>}
 
       {estado.eventosBloqueados.length > 0 && (
         <section className="pt-2">
-          <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-stone-600">Avisos bloqueados</h3>
-          <ul className="space-y-2">
+          <h2 className="mb-1 px-1 text-sm font-semibold text-stone-700">Avisos bloqueados</h2>
+          <ul className="space-y-1.5">
             {estado.eventosBloqueados.map((b) => (
-              <li key={b.evento.id} className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+              <li key={b.evento.id} className="rounded-xl bg-amber-50 p-3 text-sm">
                 <p className="font-semibold">{b.evento.descripcion}</p>
                 <p>
                   {b.motivo} · {formatoHora(b.hora)} · No se envió ningún mensaje.
@@ -88,7 +130,7 @@ function Reglas() {
               role="switch"
               aria-checked={r.activa}
               aria-label={`${r.id}: ${r.activa ? 'activa' : 'suspendida'}`}
-              onClick={() => dispatch({ type: 'REGLA', reglaId: r.id })}
+              onClick={() => dispatch({ type: 'REGLA', reglaId: r.id, perfil: PERFIL })}
               className={`min-h-11 min-w-28 rounded-lg px-3 text-sm font-bold ${
                 r.activa ? 'bg-oliva text-white' : 'bg-red-100 text-red-900'
               }`}
@@ -106,37 +148,29 @@ function Reglas() {
 
 export function AgronomistPanel() {
   const { estado } = useStore();
-  const [pestana, setPestana] = useState<Pestana>('bandeja');
-  const [casoId, setCasoId] = useState<string | null>(null);
-  const k = indicadores(estado);
+  const [pestana, setPestana] = useState<Pestana>('casos');
+  const [elegido, setElegido] = useState<string | null>(null);
+  const [enDetalle, setEnDetalle] = useState(false); // en el celular se ve una cosa a la vez
 
-  const metricas = [
-    { texto: 'Casos abiertos', valor: k.casosAbiertos },
-    { texto: 'Casos prioritarios', valor: k.casosPrioritarios },
-    { texto: 'Avisos bloqueados', valor: k.avisosBloqueados },
-    { texto: 'Mensajes enviados', valor: k.mensajesEnviados },
-  ];
+  // En escritorio siempre hay algo abierto: el primero de la bandeja.
+  const primero = bandejaEspecialista(estado, PERFIL)[0]?.id ?? null;
+  const abierto = elegido ?? primero;
+  const abrir = (id: string) => {
+    setElegido(id);
+    setEnDetalle(true);
+  };
 
   return (
-    <div className="min-w-0 rounded-xl border border-stone-200 bg-white shadow-sm">
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-t-xl border-b border-stone-200 bg-stone-200 sm:grid-cols-4">
-        {metricas.map((m) => (
-          <div key={m.texto} className="bg-white px-3 py-2">
-            <p className="text-xl font-bold leading-tight text-oliva-oscuro">{m.valor}</p>
-            <p className="text-sm text-stone-600">{m.texto}</p>
-          </div>
-        ))}
-      </div>
-
-      <div role="tablist" className="flex flex-wrap border-b border-stone-200">
+    <div className="min-w-0 space-y-3">
+      <div role="tablist" aria-label="Secciones de Diego" className="flex gap-1 overflow-x-auto">
         {PESTANAS.map((p) => (
           <button
             key={p.id}
             role="tab"
             aria-selected={p.id === pestana}
             onClick={() => setPestana(p.id)}
-            className={`min-h-11 flex-1 whitespace-nowrap border-b-2 px-3 text-sm font-semibold ${
-              p.id === pestana ? 'border-oliva text-oliva-oscuro' : 'border-transparent text-stone-600 hover:text-stone-900'
+            className={`min-h-11 flex-none rounded-lg px-3 text-sm font-semibold ${
+              p.id === pestana ? 'bg-white text-oliva-oscuro' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             {p.texto}
@@ -144,20 +178,33 @@ export function AgronomistPanel() {
         ))}
       </div>
 
-      <div className="max-h-[calc(100dvh-17rem)] min-h-[440px] overflow-y-auto">
-        {pestana === 'bandeja' && (
-          <Bandeja
-            onAbrir={(id) => {
-              setCasoId(id);
-              setPestana('detalle');
-            }}
-          />
-        )}
-        {pestana === 'detalle' && <CaseDetail casoId={casoId} />}
-        {pestana === 'comparar' && <Comparar />}
-        {pestana === 'reglas' && <Reglas />}
-        {pestana === 'auditoria' && <AuditLog />}
-      </div>
+      {pestana === 'casos' && (
+        <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div className={enDetalle ? 'hidden lg:block' : ''}>
+            <Bandeja casoId={abierto} onAbrir={abrir} />
+          </div>
+          <div className={`min-w-0 rounded-2xl bg-white ${enDetalle ? '' : 'hidden lg:block'}`}>
+            <button
+              onClick={() => setEnDetalle(false)}
+              className="min-h-11 px-4 text-sm font-semibold text-oliva-oscuro lg:hidden"
+            >
+              ← Volver a la bandeja
+            </button>
+            {abierto === GRUPO ? (
+              <ReportesRelacionados onAbrir={abrir} />
+            ) : (
+              <CaseDetail casoId={abierto} onTomar={setElegido} />
+            )}
+          </div>
+        </div>
+      )}
+      {pestana !== 'casos' && (
+        <div className="min-w-0 rounded-2xl bg-white">
+          {pestana === 'comparar' && <Comparar />}
+          {pestana === 'reglas' && <Reglas />}
+          {pestana === 'auditoria' && <AuditLog />}
+        </div>
+      )}
     </div>
   );
 }

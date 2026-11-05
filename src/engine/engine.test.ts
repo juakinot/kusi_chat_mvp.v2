@@ -43,7 +43,7 @@ describe('aviso de agua', () => {
     expect(chat('PA-ROSA')).toHaveLength(1);
     expect(chat('PA-JUAN')).toHaveLength(0);
     expect(chat('PA-ROSA')[0].texto).toBe(
-      'Aviso de la Comisión de Regantes (hoy 8:30 a. m.): mañana no llegará agua al sector Bajo. ¿Ya regaste "Chacra del bajo"?\nVálido hasta mañana 6:00 p. m.',
+      'Hola, Rosa 🌱. Tenemos un aviso sobre el agua de tu sector para mañana. ¿Ya regaste tus olivos?',
     );
     expect(estado.auditoria.some((a) => a.resultado === 'Parcela de Juan no afectada (sector Alto)')).toBe(true);
   });
@@ -107,7 +107,7 @@ describe('conversación', () => {
 
   it('5. "Todavía no" + reservorio con agua: acción sugerida con el plan', () => {
     responder('todavia_no');
-    expect(chat('PA-ROSA').at(-1)?.texto).toBe('¿Tu reservorio tiene agua hoy?');
+    expect(chat('PA-ROSA').at(-1)?.texto).toBe('¿Tienes agua disponible en tu reservorio?');
     responder('si_agua');
     expect(caso().estado).toBe('accion_sugerida');
     const texto = chat('PA-ROSA').at(-1)?.texto ?? '';
@@ -124,7 +124,7 @@ describe('conversación', () => {
     expect(caso().plazo).toBe(new Date(2026, 10, 5, 19, 0).toISOString());
     expect(estado.parcelas[0].reservorioEstado).toBe('vacio');
     expect(chat('PA-ROSA').at(-1)?.texto).toBe(
-      'Entendido. Pasé tu caso al Ing. Responsable como prioritario. Te escribirá antes de las 7:00 p. m. Mientras tanto no necesitas hacer nada más.',
+      'Rosa, registré que no tienes agua disponible. Enviaré tu caso al especialista para que revise las alternativas. Te avisaremos cuando haya una respuesta.',
     );
   });
 

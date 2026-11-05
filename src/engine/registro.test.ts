@@ -130,7 +130,7 @@ describe('registro completo', () => {
   it('entra al cruce: el aviso le llega, y sin plan pasa al agrónomo', () => {
     registrar();
     correr((e) => procesarEvento(e, eventoCorte(INICIO), e.ahora));
-    expect(ultimo()).toContain('¿Ya regaste "Chacra del canal"?');
+    expect(ultimo()).toContain('¿Ya regaste tus olivos?');
     const id = () => casoNuevo()!.id;
     correr((e) => procesarRespuesta(e, id(), 'todavia_no', e.ahora));
     correr((e) => procesarRespuesta(e, id(), 'si_agua', e.ahora));
@@ -143,7 +143,7 @@ describe('registro completo', () => {
   it('con un aviso vigente en su sector lo recibe al terminar', () => {
     correr((e) => procesarEvento(e, eventoCorte(INICIO), e.ahora));
     registrar();
-    expect(ultimo()).toContain('¿Ya regaste "Chacra del canal"?');
+    expect(ultimo()).toContain('¿Ya regaste tus olivos?');
   });
 
   it('un aviso de otro sector no le llega', () => {

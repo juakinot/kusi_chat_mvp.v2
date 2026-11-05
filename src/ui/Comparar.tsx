@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { compararPerfiles } from '../engine/comparar';
+import { compararPerfiles, perfilesDemo } from '../engine/comparar';
 import { diaRelativo } from '../engine/engine';
 import type { Parcela } from '../engine/types';
 import { useStore } from '../state/store';
@@ -25,6 +25,7 @@ function Ficha({ parcela, nombre, ahora }: { parcela: Parcela; nombre: string; a
 export function Comparar() {
   const { estado } = useStore();
   const { parcelas, reglas, eventos, casos, mensajes, productores } = estado;
+  const perfiles = perfilesDemo(estado);
 
   // El reloj avanza cada segundo; la comparación solo cambia cuando cambian los datos.
   const comparaciones = useMemo(
@@ -41,7 +42,7 @@ export function Comparar() {
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        {parcelas.map((p) => (
+        {perfiles.map((p) => (
           <Ficha
             key={p.id}
             parcela={p}

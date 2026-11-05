@@ -1,10 +1,12 @@
 import type {
   BotonRespuesta,
+  Barrera,
   Caso,
   EntradaAuditoria,
   Estado,
   EventoAgua,
   Mensaje,
+  NecesidadId,
   Parcela,
   PasoConversacion,
   PasoRegistro,
@@ -16,9 +18,11 @@ import type {
   Sector,
   Tema,
 } from './types';
+import { puede, type Perfil, type Permiso } from './permisos';
 
 export const SISTEMA = 'Sistema';
-export const INGENIERO = 'Ing. Responsable (demo)';
+export const INGENIERO = 'Diego (especialista)';
+export const ORGANIZACION = 'Lucía (organización)';
 export const JURADO = 'Jurado (demo)';
 export const SIN_EVENTO = 'SIN-EVENTO';
 export const PARCELA_NUEVA = 'PA-NUEVO';
@@ -29,7 +33,7 @@ export const TEXTO_SOLO_BOTONES =
 
 export const BOTONES: Record<PasoConversacion, BotonRespuesta[]> = {
   inicial: [
-    { id: 'ya_regue', etiqueta: 'Ya regué' },
+    { id: 'ya_regue', etiqueta: 'Sí, ya regué' },
     { id: 'todavia_no', etiqueta: 'Todavía no' },
     { id: 'no_se', etiqueta: 'No sé' },
   ],
@@ -39,8 +43,8 @@ export const BOTONES: Record<PasoConversacion, BotonRespuesta[]> = {
     { id: 'no_se', etiqueta: 'No sé' },
   ],
   reservorio: [
-    { id: 'si_agua', etiqueta: 'Sí, tiene agua' },
-    { id: 'esta_vacio', etiqueta: 'Está vacío' },
+    { id: 'si_agua', etiqueta: 'Sí' },
+    { id: 'esta_vacio', etiqueta: 'No' },
     { id: 'no_se', etiqueta: 'No sé' },
   ],
   seguimiento: [
@@ -69,10 +73,11 @@ export const BOTONES: Record<PasoConversacion, BotonRespuesta[]> = {
 };
 
 export const MENU: BotonRespuesta[] = [
-  { id: 'plaga', etiqueta: 'Vi una plaga' },
+  { id: 'plaga', etiqueta: 'Veo algo raro en mis olivos' },
   { id: 'dano', etiqueta: 'Daño en la chacra' },
   { id: 'menos_agua', etiqueta: 'Llega menos agua' },
   { id: 'cuota', etiqueta: 'Mi cuota de agua' },
+  { id: 'venta', etiqueta: 'Comparar ofertas de venta' },
 ];
 
 const BOTONES_REGISTRO: Partial<Record<PasoRegistro, BotonRespuesta[]>> = {
@@ -304,14 +309,9 @@ export function parcelasAfectadas(evento: EventoAgua, parcelas: Parcela[]): Parc
 
 // ---------- 3. Evento de agua ----------
 
-function textoAviso(evento: EventoAgua, parcela: Parcela, ahora: string): string {
-  const origen =
-    evento.origen === 'comision_regantes' ? 'Aviso de la Comisión de Regantes' : 'Reporte de un productor';
-  const emitido = `${diaRelativo(evento.emitidoEn, ahora)} ${formatoHora(evento.emitidoEn)}`;
+function textoAviso(evento: EventoAgua, nombre: string, ahora: string): string {
   const dia = diaRelativo(evento.fechaAfectada, ahora);
-  const efecto = evento.tipo === 'corte' ? 'no llegará agua' : 'llegará menos agua';
-  const vigencia = `${diaRelativo(evento.vigenteHasta, ahora)} ${formatoHora(evento.vigenteHasta)}`;
-  return `${origen} (${emitido}): ${dia} ${efecto} al sector ${evento.sector}. ¿Ya regaste "${parcela.alias}"?\nVálido hasta ${vigencia}`;
+  return `Hola, ${nombre} 🌱. Tenemos un aviso sobre el agua de tu sector para ${dia}. ¿Ya regaste tus olivos?`;
 }
 
 /** R-AGUA-01 para una parcela: abre el caso y envía el aviso. */
@@ -345,7 +345,7 @@ function avisarParcela(t: Tx, evento: EventoAgua, parcela: Parcela, r01: Regla, 
     parcelaId: parcela.id,
     casoId,
     de: 'kusi',
-    texto: textoAviso(evento, parcela, ahora),
+    texto: textoAviso(evento, nombreDe(t.estado, parcela.id), ahora),
     botones: BOTONES.inicial,
   });
 }
@@ -428,7 +428,7 @@ function preguntar(t: Tx, caso: Caso, paso: PasoConversacion, texto: string, bot
 
 function cerrarPorRiego(t: Tx, caso: Caso, parcela: Parcela, motivo: string) {
   t.parcela(parcela.id, { riegoPendiente: false });
-  t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo });
+  t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo, situacion: 'ya_rego' });
   t.audit({ tipo: 'caso', datosUsados: { casoId: caso.id }, resultado: `Caso ${caso.id} cerrado: ${motivo}` });
   t.mensaje({
     parcelaId: caso.parcelaId,
@@ -468,13 +468,17 @@ function aRevision(
     de: 'kusi',
     texto:
       opciones.texto?.(hora) ??
-      `Entendido. Pasé tu caso al Ing. Responsable como prioritario. Te escribirá antes de las ${hora} Mientras tanto no necesitas hacer nada más.`,
+      `Entendido. Pasé tu caso a Diego, el especialista, como prioritario. Te escribirá antes de las ${hora} Mientras tanto no necesitas hacer nada más.`,
   });
 }
 
 // ---------- Reportes del productor: plaga, daño y menos agua ----------
 
-const ETIQUETA_REPORTE: Partial<Record<Tema, string>> = { plaga: 'plaga', dano: 'daño', agua: 'menos agua' };
+const ETIQUETA_REPORTE: Partial<Record<Tema, string>> = {
+  plaga: 'cambios en hojas o ramas',
+  dano: 'daño',
+  agua: 'menos agua',
+};
 
 function abrirCaso(t: Tx, parcela: Parcela, ahora: string, tema: Tema, plazo: string, motivo: string): Caso {
   const caso: Caso = {
@@ -508,7 +512,7 @@ function revisarFoco(t: Tx, caso: Caso, parcela: Parcela, r: Regla) {
   for (const c of reportes) {
     t.caso(c.id, { prioridad: 'alta', motivo: `${c.motivo.replace(/ · \d+ reportes.*$/, '')} · ${nota}` });
   }
-  t.auditRegla(r, { sector: parcela.sector, casos: reportes.map((c) => c.id) }, `Posible foco: ${nota}`);
+  t.auditRegla(r, { sector: parcela.sector, casos: reportes.map((c) => c.id) }, `Reportes relacionados: ${nota}`);
 }
 
 function reporteARevision(
@@ -538,7 +542,7 @@ function reportarMenosAgua(t: Tx, parcela: Parcela, ahora: string) {
     t.mensaje({
       parcelaId: parcela.id,
       de: 'kusi',
-      texto: `Ya tenemos un aviso verificado para el sector ${sectorDe(parcela)}, válido hasta ${diaRelativo(aviso.vigenteHasta, ahora)} ${formatoHora(aviso.vigenteHasta)} Si tu caso es distinto, pulsa PERSONA.`,
+      texto: `Ya tenemos un aviso verificado para el sector ${sectorDe(parcela)}, válido hasta ${diaRelativo(aviso.vigenteHasta, ahora)} ${formatoHora(aviso.vigenteHasta)} Si tu caso es distinto, pide hablar con una persona.`,
     });
     return;
   }
@@ -546,14 +550,14 @@ function reportarMenosAgua(t: Tx, parcela: Parcela, ahora: string) {
   reporteARevision(t, caso, parcela, ahora, 'Reporte de menos agua, sin aviso verificado', { sector: parcela.sector }, {
     prioridad: 'media',
     texto: (hora) =>
-      `Recibimos tu reporte del sector ${sectorDe(parcela)}. El agrónomo lo revisará antes de las ${hora} No avisamos a otros productores hasta confirmarlo.`,
+      `Recibimos tu reporte del sector ${sectorDe(parcela)}. El especialista lo revisará antes de las ${hora} No avisamos a otros productores hasta confirmarlo.`,
   });
 }
 
 function informarCuota(t: Tx, parcela: Parcela, ahora: string) {
   const r = regla(t.estado, 'R-AGE-01');
   const cuota = parcela.cuota;
-  let texto = `No tengo una fecha de cuota registrada para "${parcela.alias}". Pulsa PERSONA si quieres registrarla.`;
+  let texto = `No tengo una fecha de cuota registrada para "${parcela.alias}". Pide hablar con una persona si quieres registrarla.`;
   if (cuota?.pagada) texto = `Tu ${cuota.concepto} ya figura como pagada.`;
   else if (cuota) texto = `Tu ${cuota.concepto} vence ${cuandoVence(cuota.vence, ahora)}.`;
   t.auditRegla(r, { parcelaId: parcela.id, cuota: cuota ?? null }, `Consulta de cuota respondida con la ficha de ${nombreDe(t.estado, parcela.id)}`);
@@ -564,7 +568,7 @@ function informarCuota(t: Tx, parcela: Parcela, ahora: string) {
 export function mostrarMenu(estado: Estado, parcelaId: string, ahora: string): Resultado {
   const t = transaccion(estado, ahora);
   t.cerrarMenu(parcelaId);
-  t.mensaje({ parcelaId, de: 'productor', texto: 'MENÚ' });
+  t.mensaje({ parcelaId, de: 'productor', texto: 'Otras consultas' });
   t.mensaje({ parcelaId, de: 'kusi', texto: '¿En qué te ayudo?', botones: MENU });
   return t.fin();
 }
@@ -586,7 +590,7 @@ export function iniciarConsulta(estado: Estado, parcelaId: string, consultaId: s
 
   switch (consultaId) {
     case 'plaga': {
-      const caso = abrirCaso(t, parcela, ahora, 'plaga', sumarHoras(ahora, 24), 'Reporte de plaga en curso');
+      const caso = abrirCaso(t, parcela, ahora, 'plaga', sumarHoras(ahora, 24), 'Reporte de hojas o ramas en curso');
       preguntar(t, caso, 'plaga_desde', `Recibí tu reporte de "${parcela.alias}". ¿Desde cuándo lo ves?`);
       break;
     }
@@ -660,7 +664,7 @@ function responderPago(t: Tx, caso: Caso, parcela: Parcela, ahora: string, pagad
     motivo = quedaRecordatorio ? 'Queda el recordatorio de 1 día antes' : 'Último recordatorio entregado';
     texto = quedaRecordatorio
       ? 'Listo. Te lo recuerdo 1 día antes. KUSI no recibe pagos.'
-      : 'Entendido. Si necesitas ayuda, pulsa PERSONA. KUSI no recibe pagos.';
+      : 'Entendido. Si necesitas ayuda, pide hablar con una persona. KUSI no recibe pagos.';
   }
   t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo });
   t.auditRegla(r, { casoId: caso.id, pagado }, `Caso ${caso.id} cerrado: ${motivo}`);
@@ -675,18 +679,27 @@ function sinAlternativa(
   ahora: string,
   motivo: string,
   datos: Record<string, unknown>,
+  barrera: Barrera,
 ) {
   const r03 = regla(t.estado, 'R-AGUA-03');
   const noDisponible = reglaNoDisponible(r03, ahora);
-  aRevision(t, caso, parcela, ahora, noDisponible ?? motivo, r03, datos);
+  const nombre = nombreDe(t.estado, parcela.id);
+  const enviar = 'Enviaré tu caso al especialista para que revise las alternativas. Te avisaremos cuando haya una respuesta.';
+  const inicio: Record<Barrera, string> = {
+    reservorio_vacio: `${nombre}, registré que no tienes agua disponible.`,
+    sin_reservorio: `${nombre}, en tu ficha no figura un reservorio.`,
+    no_confirmado: `${nombre}, no pude confirmar si tienes agua disponible.`,
+  };
+  aRevision(t, caso, parcela, ahora, noDisponible ?? motivo, r03, datos, { texto: () => `${inicio[barrera]} ${enviar}` });
+  t.caso(caso.id, { situacion: 'sin_alternativa', barrera });
 }
 
 function preguntarReservorio(t: Tx, caso: Caso, parcela: Parcela, ahora: string) {
   if (!parcela.tieneReservorio) {
-    sinAlternativa(t, caso, parcela, ahora, 'No tiene reservorio', { tieneReservorio: false });
+    sinAlternativa(t, caso, parcela, ahora, 'No tiene reservorio', { tieneReservorio: false }, 'sin_reservorio');
     return;
   }
-  preguntar(t, caso, 'reservorio', '¿Tu reservorio tiene agua hoy?');
+  preguntar(t, caso, 'reservorio', '¿Tienes agua disponible en tu reservorio?');
 }
 
 /** R-AGUA-02: solo sugiere el plan si el dato registrado y la respuesta coinciden. */
@@ -700,14 +713,20 @@ function reservorioConAgua(t: Tx, caso: Caso, parcela: Parcela, ahora: string) {
   const noDisponible = reglaNoDisponible(r02, ahora);
   if (noDisponible) {
     aRevision(t, caso, parcela, ahora, `${noDisponible} (${r02.id})`, r02, datos);
+    t.caso(caso.id, { situacion: 'con_alternativa' });
     return;
   }
   if (parcela.reservorioEstado === 'vacio') {
-    sinAlternativa(t, caso, parcela, ahora, 'El productor dijo que tiene agua, pero el reservorio figura vacío', datos);
+    sinAlternativa(t, caso, parcela, ahora, 'El productor dijo que tiene agua, pero el reservorio figura vacío', datos, 'no_confirmado');
     return;
   }
   if (!parcela.planAprobado) {
-    sinAlternativa(t, caso, parcela, ahora, 'No hay plan aprobado para esta parcela', datos);
+    // Tiene agua, pero no hay un paso aprobado que recordarle: decide el especialista.
+    aRevision(t, caso, parcela, ahora, reglaNoDisponible(regla(t.estado, 'R-AGUA-03'), ahora) ?? 'No hay plan aprobado para esta parcela', regla(t.estado, 'R-AGUA-03'), datos, {
+      texto: () =>
+        `${nombreDe(t.estado, parcela.id)}, registré que tienes agua. Enviaré tu caso al especialista para que revise cómo usarla. Te avisaremos cuando haya una respuesta.`,
+    });
+    t.caso(caso.id, { situacion: 'con_alternativa' });
     return;
   }
   t.parcela(parcela.id, { reservorioEstado: 'con_agua' });
@@ -718,6 +737,7 @@ function reservorioConAgua(t: Tx, caso: Caso, parcela: Parcela, ahora: string) {
     plazo,
     paso: undefined,
     motivo: 'Paso del plan recordado; seguimiento programado',
+    situacion: 'con_alternativa',
     reglaId: r02.id,
     reglaVersion: r02.version,
   });
@@ -734,7 +754,7 @@ function noSabe(t: Tx, caso: Caso, parcela: Parcela, ahora: string, repregunta: 
   const conteoNoSe = caso.conteoNoSe + 1;
   t.caso(caso.id, { conteoNoSe });
   if (conteoNoSe >= 2) {
-    sinAlternativa(t, caso, parcela, ahora, 'Respondió "No sé" dos veces', { conteoNoSe });
+    sinAlternativa(t, caso, parcela, ahora, 'Respondió "No sé" dos veces', { conteoNoSe }, 'no_confirmado');
     return;
   }
   repregunta();
@@ -789,7 +809,7 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
       break;
     case 'reservorio:no_se':
       noSabe(t, caso, parcela, ahora, () =>
-        preguntar(t, caso, 'reservorio', 'No hay problema. ¿Puedes revisar tu reservorio y decirme si tiene agua hoy?'),
+        preguntar(t, caso, 'reservorio', 'No hay problema. ¿Puedes revisar tu reservorio y decirme si tienes agua disponible?'),
       );
       break;
     case 'reservorio:si_agua':
@@ -800,12 +820,12 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
       sinAlternativa(t, caso, parcela, ahora, 'Reservorio vacío', {
         reservorioEstado: 'vacio',
         respuesta: respuestaId,
-      });
+      }, 'reservorio_vacio');
       break;
     case 'seguimiento:si_pude': {
       const r = regla(estado, 'R-SEG-01');
       t.parcela(parcela.id, { riegoPendiente: false });
-      t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo: 'El productor pudo regar' });
+      t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo: 'El productor pudo regar', situacion: 'ya_rego' });
       t.auditRegla(r, { respuesta: respuestaId }, `Caso ${caso.id} cerrado: el productor pudo regar`);
       t.mensaje({
         parcelaId: parcela.id,
@@ -817,13 +837,20 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
     }
     case 'seguimiento:no_pude': {
       const r = regla(estado, 'R-SEG-01');
-      t.caso(caso.id, { paso: undefined, plazo: undefined, prioridad: 'media', motivo: 'Barrera registrada' });
+      t.caso(caso.id, {
+        paso: undefined,
+        plazo: undefined,
+        prioridad: 'media',
+        motivo: 'Barrera registrada',
+        situacion: 'sin_alternativa',
+        barrera: caso.barrera ?? 'no_confirmado',
+      });
       t.auditRegla(r, { respuesta: respuestaId }, `Caso ${caso.id} sigue pendiente: barrera registrada`);
       t.mensaje({
         parcelaId: parcela.id,
         casoId: caso.id,
         de: 'kusi',
-        texto: 'Gracias por contarme. Lo dejé registrado para el Ing. Responsable.',
+        texto: 'Gracias por contarme. Lo dejé registrado para el especialista.',
       });
       break;
     }
@@ -835,14 +862,14 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
     case 'plaga_desde:esta_semana':
     case 'plaga_desde:mas_tiempo':
     case 'plaga_desde:no_se':
-      reporteARevision(t, caso, parcela, ahora, `Plaga observada (${boton.etiqueta.toLowerCase()})`, { desde: respuestaId }, {
+      reporteARevision(t, caso, parcela, ahora, `Cambios en hojas o ramas (${boton.etiqueta.toLowerCase()})`, { desde: respuestaId }, {
         texto: (hora) =>
-          `El agrónomo lo revisará y te escribirá antes de las ${hora} No apliques productos hasta que te responda.`,
+          `El especialista lo revisará y te escribirá antes de las ${hora}`,
       });
       break;
     case 'dano_personas:si_personas':
       aRevision(t, caso, parcela, ahora, 'Emergencia: personas en peligro', regla(estado, 'R-REP-01'), { respuesta: respuestaId }, {
-        texto: () => 'Esto supera a KUSICHAT. Llama ahora a emergencias y a la municipalidad. También avisé al Ing. Responsable.',
+        texto: () => 'Esto supera a KUSICHAT. Llama ahora a emergencias y a la municipalidad. También avisé a Diego, el especialista.',
       });
       break;
     case 'dano_personas:no_personas':
@@ -972,7 +999,7 @@ function responderRegistro(estado: Estado, entrada: string, esBoton: boolean, ah
   t.cerrarMenu(parcelaId);
 
   const bienvenida =
-    'Hola, soy KUSI, el asistente de KUSICHAT. Te avisaremos cambios de agua y te conectaremos con el Ing. Responsable. Guardamos tu nombre, parcela y respuestas solo para atenderte. ¿Aceptas?';
+    'Hola, soy KUSI, el asistente de KUSICHAT. Te avisaremos cambios de agua y te conectaremos con el especialista. Guardamos tu nombre, parcela y respuestas solo para atenderte. ¿Aceptas?';
   const valor = boton?.id ?? entrada.trim().slice(0, 40);
 
   switch (reg.paso) {
@@ -994,7 +1021,7 @@ function responderRegistro(estado: Estado, entrada: string, esBoton: boolean, ah
         avanzar(
           {},
           'consentimiento',
-          'Usamos tus datos solo para avisarte sobre tu parcela y para que el agrónomo te atienda. No los vendemos. Puedes salir cuando quieras escribiendo BAJA. ¿Aceptas?',
+          'Usamos tus datos solo para avisarte sobre tu parcela y para que el especialista te atienda. No los vendemos. Puedes salir cuando quieras escribiendo BAJA. ¿Aceptas?',
         );
       } else {
         t.auditRegla(rReg, { textoAceptado: bienvenida }, 'Consentimiento aceptado');
@@ -1076,7 +1103,13 @@ export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, t
   let caso = [...estado.casos].reverse().find((c) => c.parcelaId === parcelaId && c.estado !== 'cerrado');
   if (caso) {
     t.cerrarBotones(caso.id, false);
-    t.caso(caso.id, { estado: 'revision_tecnica', prioridad: 'alta', plazo, paso: undefined, motivo });
+    t.caso(caso.id, {
+      estado: caso.estado === 'en_revision' ? 'en_revision' : 'revision_tecnica',
+      prioridad: 'alta',
+      plazo,
+      paso: undefined,
+      motivo,
+    });
   } else {
     caso = {
       id: t.nuevoId('C'),
@@ -1104,7 +1137,7 @@ export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, t
     parcelaId,
     casoId: caso.id,
     de: 'kusi',
-    texto: `Entendido. Pasé tu caso al Ing. Responsable. Te escribirá antes de las ${formatoHora(plazo)}`,
+    texto: `Entendido. Pasé tu caso a Diego, el especialista. Te escribirá antes de las ${formatoHora(plazo)}`,
   });
   return t.fin();
 }
@@ -1158,7 +1191,8 @@ function enviarSeguimiento(t: Tx, caso: Caso, ahora: string) {
 
 export function adelantarTiempo(estado: Estado, horas: number): Resultado {
   // Si hay un seguimiento prometido más tarde, el reloj llega hasta esa hora para cumplir lo que KUSI dijo.
-  const seguimientos = estado.casos.filter((c) => c.estado === 'accion_sugerida' && c.plazo);
+  const programado = (c: Caso) => c.estado === 'accion_sugerida' || c.estado === 'seguimiento_programado';
+  const seguimientos = estado.casos.filter((c) => programado(c) && c.plazo);
   const ahora = seguimientos.reduce(
     (max, c) => (despues(c.plazo!, max) ? c.plazo! : max),
     sumarHoras(estado.ahora, horas),
@@ -1173,12 +1207,12 @@ export function adelantarTiempo(estado: Estado, horas: number): Resultado {
   });
 
   for (const caso of estado.casos) {
-    if (caso.estado === 'accion_sugerida') {
+    if (programado(caso)) {
       enviarSeguimiento(t, caso, ahora);
       continue;
     }
 
-    const esperaRespuesta = ['pendiente_respuesta', 'revision_tecnica', 'seguimiento_pendiente'].includes(caso.estado);
+    const esperaRespuesta = ['pendiente_respuesta', 'revision_tecnica', 'en_revision', 'seguimiento_pendiente'].includes(caso.estado);
     if (esperaRespuesta && caso.plazo && despues(ahora, caso.plazo)) {
       t.cerrarBotones(caso.id, false);
       t.caso(caso.id, {
@@ -1209,40 +1243,109 @@ export function adelantarTiempo(estado: Estado, horas: number): Resultado {
 
 // ---------- 6. Acciones del agrónomo y de la demo ----------
 
-export function cerrarCaso(estado: Estado, casoId: string, ahora: string): Resultado {
+/** Cada perfil solo ejecuta lo suyo. Un intento ajeno no cambia nada y queda en la auditoría. */
+function sinPermiso(t: Tx, perfil: Perfil, permiso: Permiso): boolean {
+  if (puede(perfil, permiso)) return false;
+  t.audit({
+    tipo: 'bloqueo',
+    datosUsados: { perfil, permiso },
+    resultado: `Acción bloqueada: el perfil ${perfil} no tiene el permiso ${permiso}`,
+  });
+  return true;
+}
+
+function tomarCaso(t: Tx, caso: Caso, ahora: string) {
+  t.cerrarBotones(caso.id, false);
+  t.caso(caso.id, { estado: 'en_revision', paso: undefined, plazo: plazoRevision(parcelaDe(t, caso), ahora) });
+  t.audit({
+    tipo: 'caso',
+    datosUsados: { casoId: caso.id, estadoAnterior: caso.estado },
+    resultado: `Caso ${caso.id} en revisión`,
+    responsable: INGENIERO,
+  });
+  t.mensaje({
+    parcelaId: caso.parcelaId,
+    casoId: caso.id,
+    de: 'kusi',
+    texto: `${nombreDe(t.estado, caso.parcelaId)}, Diego ya está revisando tu caso. Te avisaremos cuando haya una respuesta.`,
+  });
+}
+
+const parcelaDe = (t: Tx, caso: Caso) => t.estado.parcelas.find((p) => p.id === caso.parcelaId)!;
+
+export function marcarEnRevision(
+  estado: Estado,
+  casoIds: string | string[],
+  ahora: string,
+  perfil: Perfil = 'especialista',
+): Resultado {
   const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'gestionar_casos')) return t.fin();
+  const ids = Array.isArray(casoIds) ? casoIds : [casoIds];
+  for (const caso of estado.casos) {
+    if (ids.includes(caso.id) && caso.estado !== 'cerrado' && caso.estado !== 'en_revision') tomarCaso(t, caso, ahora);
+  }
+  return t.fin();
+}
+
+export function cerrarCaso(estado: Estado, casoId: string, ahora: string, perfil: Perfil = 'especialista'): Resultado {
+  const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'gestionar_casos')) return t.fin();
   const caso = estado.casos.find((c) => c.id === casoId);
   if (!caso || caso.estado === 'cerrado') return t.fin();
   t.cerrarBotones(caso.id, false);
-  t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo: 'Cerrado por el agrónomo' });
+  t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo: 'Cerrado por el especialista' });
+  t.mensaje({ parcelaId: caso.parcelaId, casoId, de: 'kusi', texto: 'Diego cerró tu caso. Si necesitas algo más, escríbenos.' });
   t.audit({
     tipo: 'caso',
     datosUsados: { casoId, estadoAnterior: caso.estado },
-    resultado: `Caso ${casoId} cerrado por el agrónomo`,
+    resultado: `Caso ${casoId} cerrado por el especialista`,
     responsable: INGENIERO,
   });
   return t.fin();
 }
 
-export function responderComoAgronomo(estado: Estado, casoId: string, texto: string, ahora: string): Resultado {
+export function responderComoAgronomo(
+  estado: Estado,
+  casoId: string,
+  texto: string,
+  ahora: string,
+  seguimiento?: string,
+  perfil: Perfil = 'especialista',
+): Resultado {
   const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'gestionar_casos')) return t.fin();
   const caso = estado.casos.find((c) => c.id === casoId);
   const limpio = texto.trim();
   if (!caso || !limpio) return t.fin();
   t.mensaje({ parcelaId: caso.parcelaId, casoId, de: 'agronomo', texto: limpio });
-  const motivo = caso.motivo.endsWith('El agrónomo respondió') ? caso.motivo : `${caso.motivo} · El agrónomo respondió`;
+  const motivo = caso.motivo.endsWith('El especialista respondió') ? caso.motivo : `${caso.motivo} · El especialista respondió`;
+  if (seguimiento) {
+    const cuando = `${diaRelativo(seguimiento, ahora)} ${formatoHora(seguimiento)}`;
+    t.cerrarBotones(casoId, false);
+    t.caso(casoId, { estado: 'seguimiento_programado', paso: undefined, plazo: seguimiento, motivo });
+    t.audit({
+      tipo: 'caso',
+      datosUsados: { casoId, seguimiento },
+      resultado: `Seguimiento programado para ${cuando}`,
+      responsable: INGENIERO,
+    });
+    t.mensaje({ parcelaId: caso.parcelaId, casoId, de: 'kusi', texto: `Te preguntaremos cómo te fue ${cuando}` });
+    return t.fin();
+  }
   t.caso(casoId, { plazo: undefined, motivo });
   t.audit({
     tipo: 'caso',
     datosUsados: { casoId },
-    resultado: `El agrónomo respondió en el caso ${casoId}; plazo cumplido`,
+    resultado: `El especialista respondió en el caso ${casoId}; plazo cumplido`,
     responsable: INGENIERO,
   });
   return t.fin();
 }
 
-export function alternarRegla(estado: Estado, reglaId: string, ahora: string): Resultado {
+export function alternarRegla(estado: Estado, reglaId: string, ahora: string, perfil: Perfil = 'especialista'): Resultado {
   const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'gestionar_reglas')) return t.fin();
   const r = regla(estado, reglaId);
   const activa = !r.activa;
   t.set({ reglas: t.estado.reglas.map((x) => (x.id === reglaId ? { ...x, activa } : x)) });
@@ -1253,6 +1356,27 @@ export function alternarRegla(estado: Estado, reglaId: string, ahora: string): R
     datosUsados: { activa },
     resultado: `Regla ${r.id} ${activa ? 'reactivada' : 'suspendida'}`,
     responsable: INGENIERO,
+  });
+  return t.fin();
+}
+
+/** La organización anota lo que debe coordinar. Es un pendiente: no envía nada ni reasigna agua. */
+export function anotarCoordinacion(
+  estado: Estado,
+  necesidad: NecesidadId,
+  detalle: string,
+  ahora: string,
+  perfil: Perfil = 'organizacion',
+): Resultado {
+  const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'anotar_coordinacion')) return t.fin();
+  if (estado.coordinacion.some((n) => n.necesidad === necesidad)) return t.fin();
+  t.set({ coordinacion: [...t.estado.coordinacion, { id: t.nuevoId('N'), necesidad, detalle, hora: ahora }] });
+  t.audit({
+    tipo: 'configuracion',
+    datosUsados: { necesidad },
+    resultado: `Anotado para coordinar: ${detalle}`,
+    responsable: ORGANIZACION,
   });
   return t.fin();
 }

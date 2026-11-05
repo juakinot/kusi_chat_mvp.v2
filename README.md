@@ -1,89 +1,112 @@
-# KUSICHAT · MVP para jurado
+# KUSICHAT 2.0 · MVP para DESPEGA CLEIN 2026
 
-KUSICHAT acompaña por WhatsApp a olivicultores de Achanizo (Cháparra, Caravelí, Arequipa).
-Cruza un aviso de agua con cada parcela, hace la pregunta mínima y aplica una regla aprobada: da un paso seguro o abre un caso para el agrónomo.
-Esta demo muestra una idea: cuando cambia un dato, la decisión cambia, y todo queda registrado.
+KUSICHAT conecta a los olivicultores de Achanizo (Cháparra, Caravelí, Arequipa) con especialistas y organizaciones locales.
+El agricultor solo necesita comunicarse. KUSICHAT lleva su información a quien puede ayudarlo, conserva el seguimiento y ayuda a entender las necesidades de su comunidad.
+
+Todas las personas, parcelas, avisos y cifras de esta demo son ficticios. Las reglas no tienen validación profesional.
 
 ## Cómo correr
 
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm test        # motor de reglas
+npm test        # motor de reglas y escenario
 npm run build   # sitio estático en dist/
 ```
 
-Para publicar, sube `dist/` a Vercel o Netlify (`npx vercel dist --prod`, o arrastra la carpeta a Netlify Drop).
+## Guía de demostración (máximo 3 minutos)
 
-## Guion de demo
+La demo abre lista: el aviso ya salió a 40 parcelas y Rosa tiene el mensaje esperando. La franja bajo los perfiles indica siempre qué mirar después.
 
-1. **Reiniciar demo** → **1. Llega aviso de corte**. Rosa recibe el mensaje. Cambia a Juan: su chat está vacío. En Auditoría: "Parcela de Juan no afectada (sector Alto)".
-2. En el chat de Rosa: **Todavía no** → **Sí, tiene agua**. Recibe el paso de su plan.
-3. **Reiniciar demo** → aviso → interruptor **Vacío** → **Todavía no** → **Está vacío**. Aparece un caso prioritario con cuenta regresiva. Ábrelo y responde como agrónomo.
-4. **Reiniciar demo** → aviso → en **Reglas** suspende R-AGUA-02 → **Todavía no** → **Sí, tiene agua**. Va a revisión técnica con motivo "Regla suspendida". El reinicio es necesario porque cada aviso abre un solo caso y "Reiniciar" también reactiva las reglas: suspende la regla después de reiniciar.
-5. **Enviar aviso vencido**. Nadie recibe nada y la Auditoría muestra el bloqueo en ámbar.
-
-6. Opcional: pestaña **Venta** en el teléfono. Con el ejemplo cargado, "En chacra" deja S/ 50,00 más.
-
-## Contraste entre perfiles
-
-La pestaña **Comparar** del panel corre el mismo motivo con los tres perfiles usando el motor real, sin enviar mensajes. Cambia si suspendes una regla o mueves el reservorio de Rosa.
-
-| | Rosa | Juan | Elena |
+| Tiempo | Pantalla | Qué hacer | Qué decir |
 |---|---|---|---|
-| Ficha | Sector Bajo, reservorio con agua y plan | Sector Alto, sin reservorio | Sector Alto, reservorio con agua, sin plan |
-| Corte de agua | Paso del plan y seguimiento | Agrónomo: no tiene reservorio | Agrónomo: no hay plan aprobado |
-| Daño en la chacra | Puede reportar su reservorio; el plan queda en revisión | No ve esa opción | Puede reportar su reservorio |
-| Cuota de agua | Recordatorio 3 días antes | Recordatorio 1 día antes | Nada: no registró fecha |
-| Plaga o menos agua | Caso para el agrónomo | Dos reportes en el sector suben a prioridad alta | Dos reportes en el sector suben a prioridad alta |
+| 0:00 | **Rosa** | Muestra el mensaje. Pulsa **Todavía no** y luego **No**. | "Rosa solo responde dos preguntas, como en WhatsApp." |
+| 0:40 | **Rosa** | Señala el panel de la derecha: caso nuevo, 8 → 9 y 8 → 7. | "Nadie hizo nada más. Esa conversación ya llegó a quien puede ayudar." |
+| 1:00 | **Diego** | Abre el caso de Rosa. Pulsa **Marcar En revisión**. | "Diego ve quién es, qué pasó y qué falta, sin reconstruir la conversación." |
+| 1:30 | **Rosa** | Muestra "Tu caso: En revisión". | "Rosa sabe que la atienden sin tener que llamar." |
+| 1:45 | **Diego** | Pulsa **Enviar y programar**. Abre **Historial del caso**. | "La respuesta y el seguimiento quedan registrados." |
+| 2:05 | **Lucía** | Muestra 9 sin alternativa y 7 sin respuesta. Abre las necesidades y pulsa **Anotar para coordinar**. | "Lucía no lee chats. Ve que 5 tienen el reservorio vacío y 4 no tienen reservorio, y decide qué coordinar." |
+| 2:35 | **Diego** | Abre **6 reportes relacionados**. | "No es solo agua. KUSICHAT junta reportes parecidos, y Diego decide. No diagnostica." |
 
-Para verlo en vivo: **2. Menos caudal** avisa a Juan y a Elena, no a Rosa. Con **3. Revisar cuotas** Rosa y Juan reciben textos distintos y Elena nada. El botón **MENÚ** del teléfono abre las consultas del productor.
+Cierre: "Una llamada ayuda a una persona. KUSICHAT permite entender a muchas y organizar su atención."
 
-## Primer registro
+Pulsa **Reiniciar** antes de cada presentación.
 
-En **Ver teléfono de** elige **Número nuevo** y pulsa **Escribir "Hola"**. KUSI pide el consentimiento y luego, una por una, nombre, parcela, sector, reservorio o pozo y próximo turno. Al confirmar, la persona entra al cruce por sector como cualquier perfil.
+### Prueba de comprensión
 
-Para el jurado: regístrate en el sector Bajo con turno y pulsa **1. Llega aviso de corte**. Si ya había un aviso vigente, llega al terminar el registro. Sin plan aprobado, "Todavía no" termina en el agrónomo.
+- **¿Qué recibe Rosa?** Un aviso sobre su sector, dos preguntas y el estado de su caso.
+- **¿Qué hace Diego?** Recibe casos ordenados con contexto, los toma, responde y programa el seguimiento.
+- **¿Qué comprende Lucía?** Cuántas parcelas necesitan atención, por qué motivo y qué sigue sin respuesta, sin ver datos privados.
+- **¿Por qué es mejor que las llamadas?** Porque cada respuesta queda ordenada y sirve a la vez a la persona, a quien la atiende y a la comunidad.
 
-- **"No" al consentimiento:** no se guarda ningún dato.
-- **Sector "No sé":** no recibe avisos de agua y se abre un caso para confirmarlo.
-- **BAJA:** escrito en cualquier chat, retira el consentimiento, cierra sus casos y no recibe más mensajes.
+## Arquitectura compartida
 
-## Implementado, simulado y pendiente
+No hay tres aplicaciones. Hay un solo estado y tres lecturas de él.
 
-| Implementado | Simulado | Pendiente para el piloto |
+```
+Respuesta de Rosa → motor de reglas (src/engine/engine.ts) → estado compartido (casos, mensajes, auditoría)
+                                                                 ├─ estadoSolicitud      → Rosa
+                                                                 ├─ bandejaEspecialista  → Diego
+                                                                 └─ vistaOrganizacion    → Lucía
+```
+
+- **`src/engine/`** es puro: no importa React ni el navegador. En un piloto se mueve al servidor sin cambios.
+- **`src/engine/vistas.ts`** contiene las lecturas por perfil. Ninguna cifra está escrita en una pantalla.
+- **`src/engine/permisos.ts`** define qué puede hacer cada perfil. Un intento ajeno no cambia nada y queda en la auditoría.
+- **`src/data/seed.ts`** arma las 40 parcelas pasando por el motor real, con las mismas funciones que usa Rosa.
+
+## Funciones anteriores conservadas
+
+Están fuera del recorrido principal:
+
+- **Teléfono:** *Otras consultas* (olivos, daño, menos agua, cuota y comparador de ofertas de venta).
+- **Diego:** pestañas *Comparar*, *Reglas* (interruptor por regla) y *Auditoría*.
+- **Rosa → Más herramientas de la demo:** teléfonos de Juan y Elena, primer registro con consentimiento (*Número nuevo*), reservorio de Rosa, menos caudal, cuotas, avisos vencidos o sin fuente y *Adelantar 24 h*.
+- BAJA, PERSONA y el texto libre siguen funcionando en el chat.
+
+La versión anterior está en la rama `respaldo-mvp-1.0`.
+
+## Implementado, simulado y futuro
+
+| Implementado | Simulado | Futuras etapas (no implementado) |
 |---|---|---|
-| Motor de reglas | WhatsApp | WhatsApp Cloud API con plantillas aprobadas |
-| Cruce por parcela | Avisos de la comisión | Backend y base de datos PostgreSQL |
-| Estados de caso | Aprobación del agrónomo | Autenticación por roles |
-| Auditoría | Paso del tiempo | Transcripción de audio con IA |
-| Interruptor de reglas | | Protocolo firmado por un agrónomo real |
-| Bloqueo de avisos vencidos o no verificados | | Consentimiento según Ley 29733 |
+| Motor de reglas y derivación | WhatsApp | WhatsApp Cloud API con plantillas aprobadas |
+| Tres perfiles sobre el mismo estado | Inicio de sesión: se cambia de perfil con un clic | Autenticación por roles, backend y base de datos |
+| Bandeja, En revisión, respuesta y seguimiento | Avisos de la organización | Fuentes meteorológicas y otras fuentes externas |
+| Indicadores calculados desde los casos | Las 40 parcelas y sus respuestas | Investigar modelos de riesgo, con datos suficientes y validación agronómica |
+| Reportes relacionados, sin diagnóstico | Paso del tiempo | Protocolo firmado por un agrónomo real |
+| Historial, antecedentes y auditoría | Aprobación de reglas y planes | Consentimiento según la Ley 29733 |
 
-`src/engine/` no importa React ni el navegador: en el piloto se mueve al servidor sin cambios.
+Tres niveles de valor de los datos: memoria individual (implementada), inteligencia operativa colectiva (implementada en versión básica) y capacidad predictiva (futura). Esta versión no predice nada ni muestra indicadores de precisión o resultados económicos.
 
 ## Decisiones tomadas sin preguntar
 
-- **Reloj simulado.** La demo arranca a las 8:30 a. m. del día real, a cualquier hora que se abra, para que el plazo de las 7:00 p. m. siempre quede por delante. Avanza un segundo por segundo.
-- **Interruptor del reservorio.** Si figura "Vacío" y Rosa responde "Sí, tiene agua", KUSI no da el paso del plan y lo pasa al agrónomo (R-AGUA-03): ante datos contradictorios elige el camino seguro. Si Rosa responde "Está vacío", el interruptor se actualiza solo.
-- **Plazo de un caso sin respuesta.** Es la hora del turno de riego (mañana 6:00 a. m.), no el fin de la vigencia. Por eso "Adelantar 24 h" lo deja vencido.
-- **"Adelantar 24 h" con seguimiento pendiente.** El reloj llega hasta las 7:00 p. m. de mañana, aunque sean más de 24 h, para que KUSI pregunte a la hora que prometió.
-- **Estados de seguimiento.** `accion_sugerida` significa que el plan fue recordado y el seguimiento está programado. `seguimiento_pendiente` empieza cuando KUSI envía la pregunta.
-- **"Sí recibió" y "No recibió".** Equivalen a "Ya regué" y "Todavía no".
-- **"No sé" sobre el reservorio.** La primera vez KUSI repregunta. Los "No sé" se suman en todo el caso: al segundo pasa a R-AGUA-03.
-- **Regla suspendida.** El caso va a revisión técnica con prioridad alta y el plazo de las 7:00 p. m.
-- **PERSONA sin caso abierto.** Crea un caso sin evento asociado, de prioridad media.
-- **Respuesta del agrónomo.** El caso sigue abierto y el plazo se da por cumplido, hasta que pulse "Cerrar caso".
-- **Textos añadidos.** El guion no definía los acuses de "Sí pude", "No pude" y PERSONA, ni la repregunta del reservorio. Son breves y no dan instrucciones técnicas.
-- **Comparador de ofertas.** Un campo vacío no se cuenta como cero: el resultado espera a que estén todos los datos.
-- **Elena.** Es un tercer perfil ficticio, en el sector Alto, para que el corte del sector Bajo siga llegando solo a Rosa.
-- **Motivos nuevos.** Plaga, daño, menos agua y cuota salen del informe (funciones B y E1). El aviso fitosanitario estacional (A2) quedó fuera porque el informe lo deja para la Fase 2.
-- **Fotos y audio.** El reporte de plaga va con botones; la foto y el audio quedan para el piloto.
+**KUSICHAT 2.0**
+
+- **La demo abre con el aviso ya enviado.** Rosa debe estar entre las 8 sin respuesta al empezar, así que el aviso se envió a las 7:00 a. m. y los demás ya contestaron.
+- **Cómo se cuenta cada parcela.** Cada caso guarda lo que el productor dijo. Sin ese dato, cuenta como "Sin respuesta", aunque haya respondido a medias, pedido una persona o el caso venza.
+- **"No sé" dos veces.** Va al especialista y cuenta como "Sin alternativa", con la barrera "Sin confirmar". KUSI no afirma que no tenga agua.
+- **Tiene agua y no hay plan.** Cuenta como "Con alternativa", pero el caso va al especialista porque no hay un paso aprobado.
+- **Seguimiento que termina en "Sí pude".** La parcela pasa a "Ya regaron". Si dice "No pude", pasa a "Sin alternativa".
+- **Aviso más corto.** El texto del prompt reemplaza al anterior. La fuente y la vigencia siguen disponibles para Diego.
+- **"No apliques productos".** Se quitó ese mensaje del reporte de olivos porque era una indicación técnica sin validar. "Vi una plaga" pasó a "Veo algo raro en mis olivos".
+- **Acción de Lucía.** *Anotar para coordinar* guarda un pendiente en el sistema. No envía nada, no reasigna agua y no lo marca como hecho.
+- **Sectores nuevos.** Se añadieron Medio y Cabecera para que los seis reportes sean tres del sector Alto y uno de cada otro sector. El registro sigue ofreciendo Bajo y Alto.
+- **Número nuevo.** Si alguien se registra en el sector Bajo con el aviso vigente, recibe el aviso y el total pasa a 41, porque es una parcela afectada más.
+- **Borrador de Diego.** Trae un texto neutro para ganar tiempo en la demo. No sugiere ninguna solución.
+- **Corrida de otro día.** Al abrir la demo en un día distinto, arranca de nuevo, para que "mañana" no apunte a una fecha pasada.
+
+**Heredadas del MVP**
+
+- **Reloj simulado.** Arranca a las 8:30 a. m. del día real y avanza un segundo por segundo.
+- **Interruptor del reservorio.** Si figura "Vacío" y Rosa responde que sí tiene agua, KUSI no da el paso del plan y lo deriva: ante datos contradictorios elige el camino seguro.
+- **Plazo de un caso sin respuesta.** Es la hora del turno de riego. Por eso "Adelantar 24 h" lo deja vencido.
+- **"Adelantar 24 h" con seguimiento pendiente.** El reloj llega hasta la hora prometida, aunque sean más de 24 h.
+- **"Sí recibió" y "No recibió".** Equivalen a "Sí, ya regué" y "Todavía no".
+- **Regla suspendida.** El caso va al especialista con prioridad alta.
 - **Dos reportes iguales en un sector.** Suben a prioridad alta. Solo cuenta casos: no es un diagnóstico.
-- **Reservorio dañado.** Retira el plan de la parcela, así que el siguiente corte va al agrónomo.
-- **Cuotas.** Se revisan con el botón, no al adelantar el tiempo, para no mezclar mensajes en el guion del agua.
-- **Registro.** Sigue el Escenario 1 del informe, con el texto de bienvenida adaptado al Ing. Responsable. Admite un número nuevo por demo.
-- **Reservorio o pozo.** Es una sola pregunta, y el flujo de agua los trata igual: pregunta por "tu reservorio".
-- **Turnos.** El registro ofrece mañana o pasado mañana a las 6:00 a. m. Dice "Anoté tu turno" y no promete un recordatorio, porque esta demo no lo envía.
-- **Tras una baja.** No hay reactivación en la demo: KUSI remite a la facilitadora.
-- **Avisos repetidos.** "Enviar aviso vencido" y "sin fuente" usan un id fijo: la segunda pulsación registra "Evento duplicado ignorado".
+- **Reservorio dañado.** Retira el plan de la parcela.
+- **Cuotas.** Se revisan con el botón, no al adelantar el tiempo.
+- **Registro.** Admite un número nuevo por demo. Tras una BAJA no hay reactivación.
+- **Fotos y audio.** Quedan para un piloto.
+- **Avisos repetidos.** La segunda pulsación registra "Evento duplicado ignorado".
