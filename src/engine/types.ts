@@ -21,8 +21,8 @@ export interface Parcela {
   id: string;
   productorId: string;
   alias: string;
-  sector: Sector;
-  proximoRiego: string; // ISO datetime
+  sector: Sector | null; // null: el productor no lo sabe; no se rellena
+  proximoRiego: string; // ISO datetime; vacío si el turno no está confirmado
   riegoPendiente: boolean;
   tieneReservorio: boolean;
   reservorioEstado: ReservorioEstado;
@@ -124,6 +124,28 @@ export interface EntradaAuditoria {
   responsable: string; // "Sistema" | "Ing. Responsable (demo)" | "Jurado (demo)"
 }
 
+export type PasoRegistro =
+  | 'inicio'
+  | 'consentimiento'
+  | 'nombre'
+  | 'alias'
+  | 'sector'
+  | 'reservorio'
+  | 'turno'
+  | 'confirmar'
+  | 'completo'
+  | 'rechazado';
+
+/** Conversación de alta de un número nuevo. Nada pasa a la ficha hasta confirmar. */
+export interface Registro {
+  paso: PasoRegistro;
+  nombre?: string;
+  alias?: string;
+  sector?: Sector | null;
+  tieneReservorio?: boolean;
+  proximoRiego?: string | null;
+}
+
 export interface EventoBloqueado {
   evento: EventoAgua;
   motivo: string;
@@ -144,6 +166,7 @@ export interface Estado {
   casos: Caso[];
   mensajes: Mensaje[];
   auditoria: EntradaAuditoria[];
+  registro: Registro;
 }
 
 export interface Resultado {

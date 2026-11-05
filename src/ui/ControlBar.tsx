@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { diaRelativo, formatoHora } from '../engine/engine';
+import { diaRelativo, formatoHora, PARCELA_NUEVA } from '../engine/engine';
 import { useStore } from '../state/store';
 
 const ROSA = 'PA-ROSA';
@@ -92,14 +92,24 @@ export function ControlBar({ chatId, onChat }: { chatId: string; onChat: (id: st
           Enviar aviso sin fuente verificada
         </Boton>
         <Boton onClick={() => dispatch({ type: 'ADELANTAR', horas: 24 })}>Adelantar 24 h</Boton>
-        <Boton onClick={() => dispatch({ type: 'REINICIAR' })}>Reiniciar demo</Boton>
+        <Boton
+          onClick={() => {
+            dispatch({ type: 'REINICIAR' });
+            onChat(ROSA);
+          }}
+        >
+          Reiniciar demo
+        </Boton>
         <Segmentado
           etiqueta="Ver teléfono de:"
           valor={chatId}
-          opciones={estado.parcelas.map((p) => ({
-            valor: p.id,
-            texto: estado.productores.find((x) => x.id === p.productorId)?.nombre ?? p.alias,
-          }))}
+          opciones={[
+            ...estado.parcelas.map((p) => ({
+              valor: p.id,
+              texto: estado.productores.find((x) => x.id === p.productorId)?.nombre ?? p.alias,
+            })),
+            ...(estado.registro.paso === 'completo' ? [] : [{ valor: PARCELA_NUEVA, texto: 'Número nuevo' }]),
+          ]}
           onChange={onChat}
         />
         <p className="col-span-2 text-sm text-stone-600 lg:ml-auto">

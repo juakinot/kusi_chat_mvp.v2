@@ -31,7 +31,7 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
   const evento = estado.eventos.find((e) => e.id === caso?.eventoId);
 
   const textosIniciales: Record<Tema, string> = {
-    agua: `${productor?.nombre}, vi tu reporte del sector ${parcela?.sector}. ¿Hay otro turno que te hayan confirmado? Avísame y revisamos tu plan juntos.`,
+    agua: `${productor?.nombre}, vi tu reporte del sector ${parcela?.sector ?? 'sin confirmar'}. ¿Hay otro turno que te hayan confirmado? Avísame y revisamos tu plan juntos.`,
     plaga: `${productor?.nombre}, vi tu reporte. Necesito una foto de cerca del envés de la hoja. ¿Puedes enviarla hoy?`,
     dano: `${productor?.nombre}, vi tu reporte de daño en "${parcela?.alias}". ¿A qué hora puedo llamarte para revisarlo?`,
     pago: `${productor?.nombre}, vi tu consulta sobre la cuota. ¿En qué te ayudo?`,
@@ -74,9 +74,9 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
       <div className="grid gap-3 md:grid-cols-2">
         <Ficha titulo="Parcela">
           <p>
-            {parcela.alias} · sector {parcela.sector}
+            {parcela.alias} · sector {parcela.sector ?? 'sin confirmar'}
           </p>
-          <p>Próximo riego: {fecha(parcela.proximoRiego)}</p>
+          <p>Próximo riego: {parcela.proximoRiego ? fecha(parcela.proximoRiego) : 'sin confirmar'}</p>
           <p>
             Reservorio: {parcela.tieneReservorio ? RESERVORIO[parcela.reservorioEstado] : 'no tiene'}
           </p>

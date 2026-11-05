@@ -14,7 +14,7 @@ function Ficha({ parcela, nombre, ahora }: { parcela: Parcela; nombre: string; a
   return (
     <div className="min-w-0 border-l-2 border-oliva pl-3 text-sm">
       <p className="text-base font-bold">{nombre}</p>
-      <p>Sector {parcela.sector}</p>
+      <p>Sector {parcela.sector ?? 'sin confirmar'}</p>
       <p>Reservorio: {parcela.tieneReservorio ? RESERVORIO[parcela.reservorioEstado] : 'no tiene'}</p>
       <p>Plan aprobado: {parcela.planAprobado ? 'sí' : 'no'}</p>
       <p>Cuota: {textoCuota}</p>
@@ -36,7 +36,7 @@ export function Comparar() {
   return (
     <div className="space-y-4 p-3">
       <p className="text-sm text-stone-700">
-        Mismo motivo y mismas respuestas para los tres. Solo cambia la ficha. Es un ensayo con el motor real: no envía
+        Mismo motivo y mismas respuestas para todos los perfiles. Solo cambia la ficha. Es un ensayo con el motor real: no envía
         mensajes ni abre casos, y cambia si suspendes una regla o mueves el reservorio de Rosa.
       </p>
 

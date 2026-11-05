@@ -69,4 +69,14 @@ export const REGLAS: Regla[] = [
     descripcion:
       'Si el productor registró una cuota sin pagar, se le recuerda 3 días y 1 día antes del vencimiento. KUSI no cobra ni se conecta con bancos.',
   },
+  {
+    id: 'R-REG-01',
+    version: 1,
+    nombre: 'Registro con consentimiento',
+    aprobadaPor: SIN_VALIDACION,
+    activa: true,
+    ...VIGENCIA,
+    descripcion:
+      'Solo se guardan datos si la persona acepta. Puede salir cuando quiera escribiendo BAJA: desde ese momento no recibe más mensajes.',
+  },
 ];

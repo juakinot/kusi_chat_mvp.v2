@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { INGENIERO, fechaLocal, formatoHora } from '../engine/engine';
+import { INGENIERO, PARCELA_NUEVA, fechaLocal, formatoHora } from '../engine/engine';
 import type { Mensaje } from '../engine/types';
 import { useStore } from '../state/store';
 import { SaleComparator } from './SaleComparator';
@@ -85,7 +85,7 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
           <div className="min-w-0">
             <p className="font-semibold leading-tight">KUSI · KUSICHAT</p>
             <p className="truncate text-sm text-white/90">
-              Teléfono de {productor?.nombre} · {parcela?.alias}
+              {parcela ? `Teléfono de ${productor?.nombre} · ${parcela.alias}` : 'Número sin registrar'}
             </p>
           </div>
         </header>
@@ -116,8 +116,19 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
         </div>
 
         <div ref={lista} className={`${vista === 'chat' ? 'flex' : 'hidden'} flex-1 flex-col gap-2 overflow-y-auto p-3`}>
-          {mensajes.length === 0 && (
+          {mensajes.length === 0 && parcelaId !== PARCELA_NUEVA && (
             <p className="m-auto rounded-lg bg-white/70 px-4 py-2 text-center text-sm text-stone-700">Sin mensajes</p>
+          )}
+          {mensajes.length === 0 && parcelaId === PARCELA_NUEVA && (
+            <div className="m-auto flex flex-col items-center gap-2 rounded-lg bg-white/70 px-4 py-3 text-center text-sm text-stone-700">
+              <p>Este número todavía no está registrado.</p>
+              <button
+                onClick={() => dispatch({ type: 'TEXTO', parcelaId, texto: 'Hola' })}
+                className="min-h-11 rounded-lg bg-oliva px-5 font-semibold text-white hover:bg-oliva-oscuro"
+              >
+                Escribir "Hola"
+              </button>
+            </div>
           )}
           {mensajes.map((m, i) => {
             const nuevoDia = i === 0 || fechaLocal(m.hora) !== fechaLocal(mensajes[i - 1].hora);
@@ -135,13 +146,15 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
         </div>
 
         <div className={`border-t border-stone-300 bg-[#f6f1ea] p-2 ${vista === 'chat' ? '' : 'hidden'}`}>
-          <div className="mb-2 grid grid-cols-2 gap-2">
-            <button
-              onClick={() => dispatch({ type: 'MENU', parcelaId })}
-              className="min-h-11 rounded-lg border border-oliva bg-white px-3 text-sm font-bold tracking-wide text-oliva-oscuro hover:bg-oliva-claro"
-            >
-              MENÚ
-            </button>
+          <div className={`mb-2 grid gap-2 ${parcela ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {parcela && (
+              <button
+                onClick={() => dispatch({ type: 'MENU', parcelaId })}
+                className="min-h-11 rounded-lg border border-oliva bg-white px-3 text-sm font-bold tracking-wide text-oliva-oscuro hover:bg-oliva-claro"
+              >
+                MENÚ
+              </button>
+            )}
             <button
               onClick={() => dispatch({ type: 'PERSONA', parcelaId })}
               className="min-h-11 rounded-lg bg-oliva-oscuro px-3 text-sm font-bold tracking-wide text-white hover:bg-oliva"

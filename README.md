@@ -39,6 +39,16 @@ La pestaña **Comparar** del panel corre el mismo motivo con los tres perfiles u
 
 Para verlo en vivo: **2. Menos caudal** avisa a Juan y a Elena, no a Rosa. Con **3. Revisar cuotas** Rosa y Juan reciben textos distintos y Elena nada. El botón **MENÚ** del teléfono abre las consultas del productor.
 
+## Primer registro
+
+En **Ver teléfono de** elige **Número nuevo** y pulsa **Escribir "Hola"**. KUSI pide el consentimiento y luego, una por una, nombre, parcela, sector, reservorio o pozo y próximo turno. Al confirmar, la persona entra al cruce por sector como cualquier perfil.
+
+Para el jurado: regístrate en el sector Bajo con turno y pulsa **1. Llega aviso de corte**. Si ya había un aviso vigente, llega al terminar el registro. Sin plan aprobado, "Todavía no" termina en el agrónomo.
+
+- **"No" al consentimiento:** no se guarda ningún dato.
+- **Sector "No sé":** no recibe avisos de agua y se abre un caso para confirmarlo.
+- **BAJA:** escrito en cualquier chat, retira el consentimiento, cierra sus casos y no recibe más mensajes.
+
 ## Implementado, simulado y pendiente
 
 | Implementado | Simulado | Pendiente para el piloto |
@@ -72,4 +82,8 @@ Para verlo en vivo: **2. Menos caudal** avisa a Juan y a Elena, no a Rosa. Con *
 - **Dos reportes iguales en un sector.** Suben a prioridad alta. Solo cuenta casos: no es un diagnóstico.
 - **Reservorio dañado.** Retira el plan de la parcela, así que el siguiente corte va al agrónomo.
 - **Cuotas.** Se revisan con el botón, no al adelantar el tiempo, para no mezclar mensajes en el guion del agua.
+- **Registro.** Sigue el Escenario 1 del informe, con el texto de bienvenida adaptado al Ing. Responsable. Admite un número nuevo por demo.
+- **Reservorio o pozo.** Es una sola pregunta, y el flujo de agua los trata igual: pregunta por "tu reservorio".
+- **Turnos.** El registro ofrece mañana o pasado mañana a las 6:00 a. m. Dice "Anoté tu turno" y no promete un recordatorio, porque esta demo no lo envía.
+- **Tras una baja.** No hay reactivación en la demo: KUSI remite a la facilitadora.
 - **Avisos repetidos.** "Enviar aviso vencido" y "sin fuente" usan un id fijo: la segunda pulsación registra "Evento duplicado ignorado".

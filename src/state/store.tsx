@@ -17,7 +17,7 @@ import {
 } from '../engine/engine';
 import type { Estado, ReservorioEstado } from '../engine/types';
 
-const CLAVE = 'kusichat-mvp-v2';
+const CLAVE = 'kusichat-mvp-v3';
 
 export type Accion =
   | { type: 'AVISO_CORTE' }

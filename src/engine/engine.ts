@@ -7,10 +7,13 @@ import type {
   Mensaje,
   Parcela,
   PasoConversacion,
+  PasoRegistro,
   Prioridad,
   Regla,
+  Registro,
   ReservorioEstado,
   Resultado,
+  Sector,
   Tema,
 } from './types';
 
@@ -18,6 +21,8 @@ export const SISTEMA = 'Sistema';
 export const INGENIERO = 'Ing. Responsable (demo)';
 export const JURADO = 'Jurado (demo)';
 export const SIN_EVENTO = 'SIN-EVENTO';
+export const PARCELA_NUEVA = 'PA-NUEVO';
+const PRODUCTOR_NUEVO = 'P-NUEVO';
 export const MOTIVO_REGLA_SUSPENDIDA = 'Regla suspendida por el agrónomo';
 export const TEXTO_SOLO_BOTONES =
   'Por ahora responde con los botones o escribe PERSONA para hablar con alguien.';
@@ -69,6 +74,32 @@ export const MENU: BotonRespuesta[] = [
   { id: 'menos_agua', etiqueta: 'Llega menos agua' },
   { id: 'cuota', etiqueta: 'Mi cuota de agua' },
 ];
+
+const BOTONES_REGISTRO: Partial<Record<PasoRegistro, BotonRespuesta[]>> = {
+  consentimiento: [
+    { id: 'acepta', etiqueta: 'Sí' },
+    { id: 'rechaza', etiqueta: 'No' },
+    { id: 'saber_mas', etiqueta: 'Quiero saber más' },
+  ],
+  sector: [
+    { id: 'Bajo', etiqueta: 'Bajo' },
+    { id: 'Alto', etiqueta: 'Alto' },
+    { id: 'no_se', etiqueta: 'No sé' },
+  ],
+  reservorio: [
+    { id: 'si', etiqueta: 'Sí' },
+    { id: 'no', etiqueta: 'No' },
+  ],
+  turno: [
+    { id: 'manana', etiqueta: 'Mañana 6:00 a. m.' },
+    { id: 'pasado', etiqueta: 'Pasado mañana 6:00 a. m.' },
+    { id: 'no_se', etiqueta: 'No sé' },
+  ],
+  confirmar: [
+    { id: 'correcto', etiqueta: 'Sí, está bien' },
+    { id: 'corregir', etiqueta: 'Corregir' },
+  ],
+};
 
 /** Las opciones dependen de la ficha: quien no tiene reservorio no lo ve en la lista. */
 export function botonesPara(paso: PasoConversacion, parcela: Parcela): BotonRespuesta[] {
@@ -227,6 +258,12 @@ function nombreDe(estado: Estado, parcelaId: string): string {
   return estado.productores.find((p) => p.id === parcela?.productorId)?.nombre ?? 'productor';
 }
 
+const sectorDe = (parcela: Parcela) => parcela.sector ?? 'sin confirmar';
+
+function tieneConsentimiento(estado: Estado, parcela: Parcela): boolean {
+  return estado.productores.some((p) => p.id === parcela.productorId && p.consentimiento);
+}
+
 function regla(estado: Estado, id: string): Regla {
   const r = estado.reglas.find((x) => x.id === id);
   if (!r) throw new Error(`Regla desconocida: ${id}`);
@@ -277,6 +314,42 @@ function textoAviso(evento: EventoAgua, parcela: Parcela, ahora: string): string
   return `${origen} (${emitido}): ${dia} ${efecto} al sector ${evento.sector}. ¿Ya regaste "${parcela.alias}"?\nVálido hasta ${vigencia}`;
 }
 
+/** R-AGUA-01 para una parcela: abre el caso y envía el aviso. */
+function avisarParcela(t: Tx, evento: EventoAgua, parcela: Parcela, r01: Regla, ahora: string) {
+  const casoId = t.nuevoId('C');
+  const caso: Caso = {
+    id: casoId,
+    parcelaId: parcela.id,
+    eventoId: evento.id,
+    tema: 'agua',
+    estado: 'pendiente_respuesta',
+    prioridad: 'media',
+    plazo: parcela.proximoRiego,
+    responsable: INGENIERO,
+    respuestas: {},
+    motivo: 'Esperando respuesta del productor',
+    creadoEn: ahora,
+    actualizadoEn: ahora,
+    paso: 'inicial',
+    conteoNoSe: 0,
+    reglaId: r01.id,
+    reglaVersion: r01.version,
+  };
+  t.set({ casos: [...t.estado.casos, caso] });
+  t.auditRegla(
+    r01,
+    { parcelaId: parcela.id, sector: parcela.sector, riegoPendiente: parcela.riegoPendiente },
+    `Parcela de ${nombreDe(t.estado, parcela.id)} afectada: caso ${casoId} abierto`,
+  );
+  t.mensaje({
+    parcelaId: parcela.id,
+    casoId,
+    de: 'kusi',
+    texto: textoAviso(evento, parcela, ahora),
+    botones: BOTONES.inicial,
+  });
+}
+
 export function procesarEvento(estado: Estado, evento: EventoAgua, ahora: string): Resultado {
   const t = transaccion(estado, ahora);
   const datos = { eventoId: evento.id, sector: evento.sector, fuenteVerificada: evento.fuenteVerificada };
@@ -320,11 +393,13 @@ export function procesarEvento(estado: Estado, evento: EventoAgua, ahora: string
     eventos: [...t.estado.eventos, evento],
     eventosBloqueados: t.estado.eventosBloqueados.filter((b) => b.evento.id !== evento.id),
   });
-  const afectadas = parcelasAfectadas(evento, estado.parcelas);
+  const afectadas = parcelasAfectadas(evento, estado.parcelas).filter((p) => tieneConsentimiento(estado, p));
 
   for (const parcela of estado.parcelas) {
     if (afectadas.includes(parcela)) continue;
-    const razon = parcela.sector !== evento.sector ? `sector ${parcela.sector}` : 'sin riego pendiente';
+    let razon = 'sin riego pendiente';
+    if (parcela.sector !== evento.sector) razon = `sector ${sectorDe(parcela)}`;
+    else if (!tieneConsentimiento(estado, parcela)) razon = 'sin consentimiento';
     t.auditRegla(
       r01,
       { parcelaId: parcela.id, sector: parcela.sector, riegoPendiente: parcela.riegoPendiente },
@@ -332,40 +407,7 @@ export function procesarEvento(estado: Estado, evento: EventoAgua, ahora: string
     );
   }
 
-  for (const parcela of afectadas) {
-    const casoId = t.nuevoId('C');
-    const caso: Caso = {
-      id: casoId,
-      parcelaId: parcela.id,
-      eventoId: evento.id,
-      tema: 'agua',
-      estado: 'pendiente_respuesta',
-      prioridad: 'media',
-      plazo: parcela.proximoRiego,
-      responsable: INGENIERO,
-      respuestas: {},
-      motivo: 'Esperando respuesta del productor',
-      creadoEn: ahora,
-      actualizadoEn: ahora,
-      paso: 'inicial',
-      conteoNoSe: 0,
-      reglaId: r01.id,
-      reglaVersion: r01.version,
-    };
-    t.set({ casos: [...t.estado.casos, caso] });
-    t.auditRegla(
-      r01,
-      { parcelaId: parcela.id, sector: parcela.sector, riegoPendiente: parcela.riegoPendiente },
-      `Parcela de ${nombreDe(estado, parcela.id)} afectada: caso ${casoId} abierto`,
-    );
-    t.mensaje({
-      parcelaId: parcela.id,
-      casoId,
-      de: 'kusi',
-      texto: textoAviso(evento, parcela, ahora),
-      botones: BOTONES.inicial,
-    });
-  }
+  for (const parcela of afectadas) avisarParcela(t, evento, parcela, r01, ahora);
   return t.fin();
 }
 
@@ -462,7 +504,7 @@ function revisarFoco(t: Tx, caso: Caso, parcela: Parcela, r: Regla) {
     (c) => c.tema === caso.tema && c.eventoId === SIN_EVENTO && c.estado !== 'cerrado' && delSector(c),
   );
   if (reportes.length < 2) return;
-  const nota = `${reportes.length} reportes de ${ETIQUETA_REPORTE[caso.tema]} en el sector ${parcela.sector}`;
+  const nota = `${reportes.length} reportes de ${ETIQUETA_REPORTE[caso.tema]} en el sector ${sectorDe(parcela)}`;
   for (const c of reportes) {
     t.caso(c.id, { prioridad: 'alta', motivo: `${c.motivo.replace(/ · \d+ reportes.*$/, '')} · ${nota}` });
   }
@@ -496,7 +538,7 @@ function reportarMenosAgua(t: Tx, parcela: Parcela, ahora: string) {
     t.mensaje({
       parcelaId: parcela.id,
       de: 'kusi',
-      texto: `Ya tenemos un aviso verificado para el sector ${parcela.sector}, válido hasta ${diaRelativo(aviso.vigenteHasta, ahora)} ${formatoHora(aviso.vigenteHasta)} Si tu caso es distinto, pulsa PERSONA.`,
+      texto: `Ya tenemos un aviso verificado para el sector ${sectorDe(parcela)}, válido hasta ${diaRelativo(aviso.vigenteHasta, ahora)} ${formatoHora(aviso.vigenteHasta)} Si tu caso es distinto, pulsa PERSONA.`,
     });
     return;
   }
@@ -504,7 +546,7 @@ function reportarMenosAgua(t: Tx, parcela: Parcela, ahora: string) {
   reporteARevision(t, caso, parcela, ahora, 'Reporte de menos agua, sin aviso verificado', { sector: parcela.sector }, {
     prioridad: 'media',
     texto: (hora) =>
-      `Recibimos tu reporte del sector ${parcela.sector}. El agrónomo lo revisará antes de las ${hora} No avisamos a otros productores hasta confirmarlo.`,
+      `Recibimos tu reporte del sector ${sectorDe(parcela)}. El agrónomo lo revisará antes de las ${hora} No avisamos a otros productores hasta confirmarlo.`,
   });
 }
 
@@ -528,6 +570,7 @@ export function mostrarMenu(estado: Estado, parcelaId: string, ahora: string): R
 }
 
 export function iniciarConsulta(estado: Estado, parcelaId: string, consultaId: string, ahora: string): Resultado {
+  if (enRegistro(estado, parcelaId)) return responderRegistro(estado, consultaId, true, ahora);
   const t = transaccion(estado, ahora);
   const parcela = estado.parcelas.find((p) => p.id === parcelaId);
   const boton = MENU.find((b) => b.id === consultaId);
@@ -576,6 +619,10 @@ export function revisarAgenda(estado: Estado, ahora: string): Resultado {
     const nombre = nombreDe(estado, parcela.id);
     const cuota = parcela.cuota;
     const datos = { parcelaId: parcela.id, cuota: cuota ?? null };
+    if (!tieneConsentimiento(estado, parcela)) {
+      t.auditRegla(r, { parcelaId: parcela.id }, `${nombre} se dio de baja: no se envía nada`);
+      continue;
+    }
     if (!cuota) {
       t.auditRegla(r, datos, `${nombre} no registró fecha de cuota: no se envía nada`);
       continue;
@@ -822,11 +869,205 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
   return t.fin();
 }
 
+// ---------- Primer registro ----------
+
+export const enRegistro = (estado: Estado, parcelaId: string) =>
+  parcelaId === PARCELA_NUEVA && estado.registro.paso !== 'completo';
+
+function resumenRegistro(r: Registro, ahora: string): string {
+  const turno = r.proximoRiego ? `${diaRelativo(r.proximoRiego, ahora)} ${formatoHora(r.proximoRiego)}` : 'sin confirmar';
+  return [
+    'Revisa tus datos:',
+    `Nombre: ${r.nombre}`,
+    `Parcela: ${r.alias}`,
+    `Sector: ${r.sector ?? 'sin confirmar'}`,
+    `Reservorio o pozo: ${r.tieneReservorio ? 'sí' : 'no'}`,
+    `Próximo turno: ${turno}`,
+    '¿Está bien?',
+  ].join('\n');
+}
+
+function completarRegistro(t: Tx, r: Registro, ahora: string) {
+  const r01 = regla(t.estado, 'R-AGUA-01');
+  const rReg = regla(t.estado, 'R-REG-01');
+  const nombre = r.nombre ?? '';
+  const parcela: Parcela = {
+    id: PARCELA_NUEVA,
+    productorId: PRODUCTOR_NUEVO,
+    alias: r.alias ?? '',
+    sector: r.sector ?? null,
+    proximoRiego: r.proximoRiego ?? '',
+    riegoPendiente: Boolean(r.proximoRiego),
+    tieneReservorio: Boolean(r.tieneReservorio),
+    reservorioEstado: 'desconocido',
+  };
+  t.set({
+    productores: [
+      ...t.estado.productores,
+      { id: PRODUCTOR_NUEVO, nombre, telefono: '+51 900 000 004', consentimiento: true },
+    ],
+    parcelas: [...t.estado.parcelas, parcela],
+    registro: { paso: 'completo' },
+  });
+  t.auditRegla(
+    rReg,
+    { parcelaId: parcela.id, sector: parcela.sector, tieneReservorio: parcela.tieneReservorio },
+    `${nombre} quedó registrado con "${parcela.alias}"`,
+  );
+
+  const agua = parcela.tieneReservorio ? 'con reservorio o pozo' : 'sin reservorio ni pozo';
+  const lugar = parcela.sector ? `sector ${parcela.sector}` : 'sin sector confirmado';
+  const turno = r.proximoRiego
+    ? `Anoté tu turno del ${DIA_SEMANA.format(new Date(r.proximoRiego))} ${formatoHora(r.proximoRiego)}`
+    : 'Todavía falta confirmar tu turno.';
+  const aviso = parcela.sector ? '' : ' Hasta confirmar tu sector no recibirás avisos de agua.';
+  t.mensaje({
+    parcelaId: parcela.id,
+    de: 'kusi',
+    texto: `Listo, ${nombre}. Registré "${parcela.alias}", ${lugar}, ${agua}. ${turno}${aviso}\nEscribe PERSONA si necesitas hablar con alguien o BAJA para salir.`,
+  });
+
+  if (!parcela.sector) {
+    const caso = abrirCaso(t, parcela, ahora, 'persona', plazoRevision(parcela, ahora), 'Registro sin sector confirmado');
+    t.caso(caso.id, { estado: 'revision_tecnica', reglaId: rReg.id, reglaVersion: rReg.version });
+    t.auditRegla(rReg, { casoId: caso.id }, `Caso ${caso.id}: falta confirmar el sector de ${nombre}`);
+  }
+
+  // Quien se registra con un aviso vigente en su sector no se queda sin él.
+  const vigente = t.estado.eventos.find((e) => e.sector === parcela.sector && !despues(ahora, e.vigenteHasta));
+  if (vigente && parcela.riegoPendiente && !reglaNoDisponible(r01, ahora)) avisarParcela(t, vigente, parcela, r01, ahora);
+}
+
+function responderRegistro(estado: Estado, entrada: string, esBoton: boolean, ahora: string): Resultado {
+  const t = transaccion(estado, ahora);
+  const reg = estado.registro;
+  const rReg = regla(estado, 'R-REG-01');
+  const botones = BOTONES_REGISTRO[reg.paso];
+  const boton = esBoton ? botones?.find((b) => b.id === entrada) : undefined;
+  if (esBoton && !boton) return t.fin();
+
+  const parcelaId = PARCELA_NUEVA;
+  const decir = (texto: string, b?: BotonRespuesta[]) => t.mensaje({ parcelaId, de: 'kusi', texto, botones: b });
+  const avanzar = (parche: Partial<Registro>, paso: PasoRegistro, texto: string) => {
+    t.set({ registro: { ...t.estado.registro, ...parche, paso } });
+    decir(texto, BOTONES_REGISTRO[paso]);
+  };
+  const rechazar = (texto: string) => {
+    t.cerrarMenu(parcelaId);
+    t.set({ registro: { paso: 'rechazado' } });
+    t.auditRegla(rReg, { paso: reg.paso }, 'Registro sin consentimiento: no se guardó ningún dato');
+    decir(texto);
+  };
+
+  t.mensaje({ parcelaId, de: 'productor', texto: boton?.etiqueta ?? entrada });
+
+  if (!esBoton && /^\s*baja\s*$/i.test(entrada)) {
+    rechazar('Listo, cancelé el registro. No guardé ningún dato tuyo.');
+    return t.fin();
+  }
+  if (botones && !boton) {
+    decir(TEXTO_SOLO_BOTONES);
+    return t.fin();
+  }
+  t.cerrarMenu(parcelaId);
+
+  const bienvenida =
+    'Hola, soy KUSI, el asistente de KUSICHAT. Te avisaremos cambios de agua y te conectaremos con el Ing. Responsable. Guardamos tu nombre, parcela y respuestas solo para atenderte. ¿Aceptas?';
+  const valor = boton?.id ?? entrada.trim().slice(0, 40);
+
+  switch (reg.paso) {
+    case 'inicio':
+    case 'rechazado': {
+      const noDisponible = reglaNoDisponible(rReg, ahora);
+      if (noDisponible) {
+        t.auditRegla(rReg, {}, `Registro bloqueado: ${noDisponible}`, 'bloqueo');
+        decir('Por ahora el registro está en pausa. Escribe PERSONA para hablar con alguien.');
+        break;
+      }
+      avanzar({}, 'consentimiento', bienvenida);
+      break;
+    }
+    case 'consentimiento':
+      if (valor === 'rechaza') {
+        rechazar('Entendido. No guardé ningún dato tuyo y no te escribiremos. Si cambias de opinión, escribe Hola.');
+      } else if (valor === 'saber_mas') {
+        avanzar(
+          {},
+          'consentimiento',
+          'Usamos tus datos solo para avisarte sobre tu parcela y para que el agrónomo te atienda. No los vendemos. Puedes salir cuando quieras escribiendo BAJA. ¿Aceptas?',
+        );
+      } else {
+        t.auditRegla(rReg, { textoAceptado: bienvenida }, 'Consentimiento aceptado');
+        avanzar({}, 'nombre', 'Gracias. ¿Cómo te llamas?');
+      }
+      break;
+    case 'nombre':
+      if (!valor) decir('¿Cómo te llamas?');
+      else avanzar({ nombre: valor }, 'alias', `Mucho gusto, ${valor}. ¿Cómo le dices a tu parcela?`);
+      break;
+    case 'alias':
+      if (!valor) decir('¿Cómo le dices a tu parcela?');
+      else avanzar({ alias: valor }, 'sector', '¿En qué sector riegas?');
+      break;
+    case 'sector':
+      avanzar({ sector: valor === 'no_se' ? null : (valor as Sector) }, 'reservorio', '¿Tienes reservorio o pozo?');
+      break;
+    case 'reservorio':
+      avanzar({ tieneReservorio: valor === 'si' }, 'turno', '¿Cuándo es tu próximo turno de riego?');
+      break;
+    case 'turno': {
+      const dias = valor === 'manana' ? 1 : 2;
+      const proximoRiego = valor === 'no_se' ? null : enDia(ahora, dias, 6);
+      const datos = { ...t.estado.registro, proximoRiego };
+      avanzar({ proximoRiego }, 'confirmar', resumenRegistro(datos, ahora));
+      break;
+    }
+    case 'confirmar':
+      if (valor === 'corregir') avanzar({}, 'nombre', 'De acuerdo, empecemos de nuevo. ¿Cómo te llamas?');
+      else completarRegistro(t, t.estado.registro, ahora);
+      break;
+  }
+  return t.fin();
+}
+
+/** BAJA: retira el consentimiento y cierra lo abierto. Desde aquí no se le escribe más. */
+function darDeBaja(estado: Estado, parcelaId: string, texto: string, ahora: string): Resultado {
+  const t = transaccion(estado, ahora);
+  const parcela = estado.parcelas.find((p) => p.id === parcelaId);
+  if (!parcela) return t.fin();
+  const r = regla(estado, 'R-REG-01');
+  t.mensaje({ parcelaId, de: 'productor', texto });
+  t.set({
+    productores: t.estado.productores.map((p) =>
+      p.id === parcela.productorId ? { ...p, consentimiento: false } : p,
+    ),
+  });
+  for (const caso of estado.casos) {
+    if (caso.parcelaId !== parcelaId || caso.estado === 'cerrado') continue;
+    t.cerrarBotones(caso.id, false);
+    t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo: 'El productor se dio de baja' });
+  }
+  t.cerrarMenu(parcelaId);
+  t.auditRegla(r, { parcelaId }, `${nombreDe(estado, parcelaId)} se dio de baja: consentimiento retirado`);
+  t.mensaje({
+    parcelaId,
+    de: 'kusi',
+    texto: 'Listo, te di de baja. No volveré a escribirte. Si cambias de opinión, habla con la facilitadora.',
+  });
+  return t.fin();
+}
+
 /** Botón PERSONA: disponible siempre, haya o no un caso abierto. */
 export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, texto = 'PERSONA'): Resultado {
   const t = transaccion(estado, ahora);
   const parcela = estado.parcelas.find((p) => p.id === parcelaId);
-  if (!parcela) return t.fin();
+  if (!parcela) {
+    if (parcelaId !== PARCELA_NUEVA) return t.fin();
+    t.mensaje({ parcelaId, de: 'productor', texto });
+    t.audit({ tipo: 'mensaje', datosUsados: { paso: estado.registro.paso }, resultado: 'Un número sin registrar pidió una persona' });
+    t.mensaje({ parcelaId, de: 'kusi', texto: 'Entendido. La facilitadora te llamará para ayudarte con el registro.' });
+    return t.fin();
+  }
 
   const motivo = 'El productor pidió hablar con una persona';
   t.mensaje({ parcelaId, de: 'productor', texto });
@@ -870,6 +1111,11 @@ export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, t
 
 /** Texto libre: sin IA. "PERSONA" escala; lo demás recibe una respuesta fija. */
 export function procesarTextoLibre(estado: Estado, parcelaId: string, texto: string, ahora: string): Resultado {
+  if (enRegistro(estado, parcelaId)) {
+    if (/^\s*persona\s*$/i.test(texto)) return pedirPersona(estado, parcelaId, ahora, texto);
+    return responderRegistro(estado, texto, false, ahora);
+  }
+  if (/^\s*baja\s*$/i.test(texto)) return darDeBaja(estado, parcelaId, texto, ahora);
   if (/(^|[^\p{L}])persona([^\p{L}]|$)/iu.test(texto)) return pedirPersona(estado, parcelaId, ahora, texto);
   const t = transaccion(estado, ahora);
   t.mensaje({ parcelaId, de: 'productor', texto });

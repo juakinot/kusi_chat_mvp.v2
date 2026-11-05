@@ -8,7 +8,7 @@ import {
   procesarRespuesta,
   revisarAgenda,
 } from './engine';
-import type { Caso, Estado, EventoAgua, Parcela, Resultado } from './types';
+import type { Caso, Estado, EventoAgua, Parcela, Resultado, Sector } from './types';
 
 export interface ResultadoPerfil {
   parcelaId: string;
@@ -50,7 +50,7 @@ function corteEnSuSector(parcela: Parcela, ahora: string): EventoAgua {
     tipo: 'corte',
     origen: 'comision_regantes',
     fuenteVerificada: true,
-    sector: parcela.sector,
+    sector: parcela.sector as Sector, // sin sector, el motor bloquea el aviso
     fechaAfectada: fechaLocal(enDia(ahora, 1, 12)),
     emitidoEn: ahora,
     vigenteHasta: enDia(ahora, 1, 18),
