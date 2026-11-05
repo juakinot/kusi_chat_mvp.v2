@@ -1,4 +1,4 @@
-import { diaRelativo, formatoHora, ordenarCasos } from './engine';
+import { diaRelativo, diasHasta, formatoHora, ordenarCasos } from './engine';
 import { puede, type Perfil } from './permisos';
 import type {
   Barrera,
@@ -43,22 +43,29 @@ function porAtender(c: Caso): boolean {
 export const casoNuevo = (estado: Estado, c: Caso) =>
   c.estado === 'revision_tecnica' && new Date(c.actualizadoEn).getTime() >= new Date(estado.inicio).getTime();
 
-const PESO_BANDEJA: Partial<Record<Caso['estado'], number>> = {
-  en_revision: 1,
-  revision_tecnica: 2,
-  vencido: 2,
-};
+const PESO_PRIORIDAD: Record<Caso['prioridad'], number> = { alta: 0, media: 1, baja: 2 };
 
-/** Lo nuevo primero, luego lo que Diego tiene entre manos. Los reportes relacionados van en su propio grupo. */
+const hora = (iso: string | undefined) => (iso ? new Date(iso).getTime() : Infinity);
+
+export const CRITERIO_BANDEJA = 'Primero quien tiene el turno de riego más próximo';
+
+/**
+ * A quién atender primero: lo que ya tiene seguimiento va al final; lo demás, por prioridad y turno de riego.
+ * Los reportes relacionados van en su propio grupo.
+ */
 export function bandejaEspecialista(estado: Estado, perfil: Perfil): Caso[] {
   if (!puede(perfil, 'ver_casos')) return [];
   const agrupados = reportesRelacionados(estado, perfil).casos.map((c) => c.id);
-  const peso = (c: Caso) => (casoNuevo(estado, c) ? 0 : (PESO_BANDEJA[c.estado] ?? 3));
+  const turno = (c: Caso) => hora(estado.parcelas.find((p) => p.id === c.parcelaId)?.proximoRiego || undefined);
+  const programado = (c: Caso) => (c.estado === 'seguimiento_programado' ? 1 : 0);
   return estado.casos
     .filter((c) => porAtender(c) && !agrupados.includes(c.id))
     .sort(
       (a, b) =>
-        peso(a) - peso(b) || new Date(b.actualizadoEn).getTime() - new Date(a.actualizadoEn).getTime(),
+        programado(a) - programado(b) ||
+        PESO_PRIORIDAD[a.prioridad] - PESO_PRIORIDAD[b.prioridad] ||
+        turno(a) - turno(b) ||
+        hora(b.actualizadoEn) - hora(a.actualizadoEn),
     );
 }
 
@@ -177,7 +184,14 @@ export function vistaOrganizacion(estado: Estado): VistaOrganizacion {
 
   const reportes = agruparReportes(estado);
   const mayor = reportes.sectores[0];
-  const turno = estado.parcelas.find((p) => p.sector === evento?.sector && p.proximoRiego)?.proximoRiego;
+  const turnoDe = (c: Caso) => estado.parcelas.find((p) => p.id === c.parcelaId)?.proximoRiego ?? '';
+  const pendientes = sinAgua.filter((c) => c.estado !== 'cerrado' && turnoDe(c));
+  const urgentes = pendientes.filter((c) => diasHasta(turnoDe(c), estado.ahora) <= 1).length;
+  const primerTurno = estado.casos
+    .filter((c) => c.eventoId === evento?.id && !c.situacion)
+    .map(turnoDe)
+    .filter(Boolean)
+    .sort((a, b) => hora(a) - hora(b))[0];
 
   const necesidades: Necesidad[] = [
     {
@@ -186,6 +200,7 @@ export function vistaOrganizacion(estado: Estado): VistaOrganizacion {
       titulo: `${parcelas(resumen.sinAlternativa)} sin alternativa de agua`,
       detalle: [
         `${porRevisar} por revisar · ${enAtencion} en atención del especialista${cerrados ? ` · ${cerrados} cerradas` : ''}`,
+        ...(pendientes.length ? [`${urgentes} de ${pendientes.length} riegan hoy o mañana: son las primeras por atender.`] : []),
         barreras,
       ].filter(Boolean),
     },
@@ -195,7 +210,7 @@ export function vistaOrganizacion(estado: Estado): VistaOrganizacion {
       titulo: `${parcelas(resumen.sinRespuesta)} sin responder`,
       detalle: [
         'No sabemos si regaron. No cuentan como resueltas.',
-        ...(turno ? [`Su turno de riego es ${diaRelativo(turno, estado.ahora)} ${formatoHora(turno)}`] : []),
+        ...(primerTurno ? [`El primer turno es ${diaRelativo(primerTurno, estado.ahora)} ${formatoHora(primerTurno)}`] : []),
       ],
     },
     {

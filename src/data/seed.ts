@@ -94,6 +94,25 @@ const VECINOS: [string, Grupo][] = [
   ...(['Raúl', 'Rita', 'Saúl', 'Sonia', 'Teodoro', 'Teresa', 'Víctor'] as const).map((n): [string, Grupo] => [n, 'callan']),
 ];
 
+/** Turnos de riego distintos: con ellos se puede decidir a quién atender primero. [días desde hoy, hora] */
+const TURNOS: Record<string, [number, number]> = {
+  Marta: [1, 8],
+  Olga: [1, 10],
+  Nelson: [1, 14],
+  Pablo: [1, 16],
+  Paula: [2, 8],
+  Nora: [2, 6],
+  Óscar: [2, 10],
+  Quintín: [2, 14],
+  Raúl: [1, 7],
+  Rita: [1, 9],
+  Saúl: [1, 11],
+  Sonia: [1, 13],
+  Teodoro: [1, 15],
+  Teresa: [1, 16],
+  Víctor: [1, 17],
+};
+
 const RESPUESTAS: Record<Grupo, string[]> = {
   regaron: ['ya_regue'],
   alternativa: ['todavia_no', 'si_agua'],
@@ -168,10 +187,10 @@ function antecedenteRosa(inicio: string): Caso {
 export function crearEstadoDemo(inicio: string = inicioDemo()): Estado {
   const riego = enDia(inicio, 1, 6);
   const emitido = enDia(inicio, 0, 7);
-  const vecinos = VECINOS.map(([nombre, grupo], i) => ({
-    grupo,
-    ...vecino(nombre, 10 + i, 'Bajo', riego, FICHA[grupo]),
-  }));
+  const vecinos = VECINOS.map(([nombre, grupo], i) => {
+    const [dias, hora] = TURNOS[nombre] ?? [1, 6];
+    return { grupo, ...vecino(nombre, 10 + i, 'Bajo', enDia(inicio, dias, hora), FICHA[grupo]) };
+  });
   const otros = [
     vecino('Mateo', 60, 'Alto', riego),
     vecino('Úrsula', 61, 'Medio', riego),

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { crearEstadoDemo } from '../data/seed';
+import { crearEstadoDemo, eventoCaudalAlto } from '../data/seed';
 import {
   adelantarTiempo,
   alternarRegla,
@@ -8,8 +8,11 @@ import {
   cerrarCaso,
   marcarEnRevision,
   pedirPersona,
+  procesarEvento,
   procesarRespuesta,
+  procesarTextoLibre,
   responderComoAgronomo,
+  TEXTO_SOLO_BOTONES,
 } from './engine';
 import { PERMISOS, puede } from './permisos';
 import type { Estado, Resultado } from './types';
@@ -328,5 +331,112 @@ describe('permisos', () => {
     expect(puede('organizacion', 'ver_agregados')).toBe(true);
     expect(puede('organizacion', 'ver_casos')).toBe(false);
     expect(puede('especialista', 'gestionar_casos')).toBe(true);
+  });
+});
+
+describe('a quién atender primero', () => {
+  const nombres = () =>
+    bandejaEspecialista(estado, 'especialista').map((c) => {
+      const parcela = estado.parcelas.find((p) => p.id === c.parcelaId);
+      return estado.productores.find((p) => p.id === parcela?.productorId)?.nombre;
+    });
+
+  it('ordena por turno de riego, no por quién llegó último', () => {
+    expect(nombres()).toEqual(['Marta', 'Olga', 'Nelson', 'Pablo', 'Nora', 'Paula', 'Óscar', 'Quintín']);
+  });
+
+  it('Rosa entra primera porque su turno es el más próximo, y sigue primera en revisión', () => {
+    rosaSinAgua();
+    expect(nombres()[0]).toBe('Rosa');
+    correr((e) => marcarEnRevision(e, casoRosa().id, e.ahora));
+    expect(nombres()[0]).toBe('Rosa');
+  });
+
+  it('con turno después de mañana el caso es prioridad media', () => {
+    const prioridad = (id: string) => estado.casos.find((c) => c.parcelaId === id && c.barrera)?.prioridad;
+    expect(prioridad('PA-MARTA')).toBe('alta');
+    expect(prioridad('PA-NORA')).toBe('media');
+  });
+
+  it('un seguimiento ya programado deja pasar a quien sigue sin atención', () => {
+    rosaSinAgua();
+    correr((e) => marcarEnRevision(e, casoRosa().id, e.ahora));
+    correr((e) => responderComoAgronomo(e, casoRosa().id, 'Te llamo.', e.ahora, MANANA));
+    expect(nombres().at(-1)).toBe('Rosa');
+  });
+
+  it('Lucía ve cuántas riegan pronto, sin nombres', () => {
+    rosaSinAgua();
+    const [necesidad, callados] = vistaOrganizacion(estado).necesidades;
+    expect(necesidad.detalle).toContain('5 de 9 riegan hoy o mañana: son las primeras por atender.');
+    expect(callados.detalle).toContain('El primer turno es mañana 7:00 a. m.');
+  });
+});
+
+describe('respuestas escritas', () => {
+  const escribir = (texto: string, parcelaId = ROSA) => correr((e) => procesarTextoLibre(e, parcelaId, texto, e.ahora));
+
+  it('"no tengo agua" contesta las dos preguntas y deriva igual que los botones', () => {
+    escribir('No tengo agua');
+    expect(chat().filter((m) => m.de === 'productor').map((m) => m.texto)).toEqual(['No tengo agua']);
+    expect(chat().some((m) => m.texto === '¿Tienes agua disponible en tu reservorio?')).toBe(false);
+    expect(chat().at(-1)?.texto).toContain('Rosa, registré que no tienes agua disponible.');
+    expect(chat()[0].botones).toBeUndefined();
+    expect(casoRosa()).toMatchObject({
+      estado: 'revision_tecnica',
+      situacion: 'sin_alternativa',
+      barrera: 'reservorio_vacio',
+      respuestas: { inicial: 'Todavía no', reservorio: 'No' },
+    });
+    expect(resumenAgua(estado)).toMatchObject({ total: 40, sinAlternativa: 9, sinRespuesta: 7 });
+    expect(estado.auditoria.at(-1)?.resultado ?? '').toBeTruthy();
+    expect(estado.auditoria.some((a) => a.resultado.includes('escribió "No tengo agua"'))).toBe(true);
+  });
+
+  it('sin reservorio, "no tengo agua" lo deriva por esa barrera', () => {
+    const juan = 'PA-JUAN';
+    correr((e) => procesarEvento(e, eventoCaudalAlto(e.inicio), e.ahora));
+    escribir('sin agua', juan);
+    const caso = estado.casos.find((c) => c.parcelaId === juan && c.tema === 'agua')!;
+    expect(caso).toMatchObject({ situacion: 'sin_alternativa', barrera: 'sin_reservorio' });
+  });
+
+  it.each([
+    ['ya regué', 'cerrado'],
+    ['Sí', 'cerrado'],
+    ['todavía no', 'pendiente_respuesta'],
+    ['NO', 'pendiente_respuesta'],
+  ])('entiende "%s" en la primera pregunta', (texto, estadoCaso) => {
+    escribir(texto);
+    expect(casoRosa().estado).toBe(estadoCaso);
+  });
+
+  it('en la pregunta del reservorio entiende sí, no y no sé', () => {
+    escribir('todavía no');
+    escribir('no sé');
+    expect(casoRosa().conteoNoSe).toBe(1);
+    escribir('sí tengo agua');
+    expect(casoRosa().estado).toBe('accion_sugerida');
+  });
+
+  it('si no hay certeza no adivina: la pregunta sigue abierta', () => {
+    for (const texto of ['no tengo reservorio', 'creo que sí, mañana veo', 'mi hijo regó ayer']) {
+      escribir(texto);
+      expect(chat().at(-1)?.texto).toBe(TEXTO_SOLO_BOTONES);
+      expect(casoRosa()).toMatchObject({ estado: 'pendiente_respuesta', paso: 'inicial' });
+    }
+  });
+
+  it('sin pregunta abierta, una frase no cambia el caso', () => {
+    rosaSinAgua();
+    const antes = casoRosa();
+    escribir('no tengo agua');
+    expect(casoRosa()).toEqual(antes);
+  });
+
+  it('PERSONA gana a cualquier otra frase', () => {
+    escribir('no tengo agua, necesito una persona');
+    expect(casoRosa().situacion).toBeUndefined();
+    expect(casoRosa().motivo).toBe('El productor pidió hablar con una persona');
   });
 });

@@ -1,12 +1,19 @@
 import { useState } from 'react';
-import { formatoHora } from '../engine/engine';
+import { diaRelativo, formatoHora } from '../engine/engine';
 import type { Caso } from '../engine/types';
-import { bandejaEspecialista, BARRERA, casoNuevo, reportesRelacionados, todosLosCasos } from '../engine/vistas';
+import {
+  bandejaEspecialista,
+  BARRERA,
+  casoNuevo,
+  CRITERIO_BANDEJA,
+  reportesRelacionados,
+  todosLosCasos,
+} from '../engine/vistas';
 import { useStore } from '../state/store';
 import { AuditLog } from './AuditLog';
 import { CaseDetail } from './CaseDetail';
 import { Comparar } from './Comparar';
-import { ESTADO_CASO, TEMA, textoPlazo } from './etiquetas';
+import { ESTADO_CASO, PRIORIDAD, TEMA } from './etiquetas';
 import { ReportesRelacionados } from './ReportesRelacionados';
 
 const PERFIL = 'especialista';
@@ -21,7 +28,17 @@ const PESTANAS: { id: Pestana; texto: string }[] = [
   { id: 'auditoria', texto: 'Auditoría' },
 ];
 
-function FilaCaso({ caso, activo, onAbrir }: { caso: Caso; activo: boolean; onAbrir: () => void }) {
+function FilaCaso({
+  caso,
+  orden,
+  activo,
+  onAbrir,
+}: {
+  caso: Caso;
+  orden?: number;
+  activo: boolean;
+  onAbrir: () => void;
+}) {
   const { estado } = useStore();
   const parcela = estado.parcelas.find((p) => p.id === caso.parcelaId);
   const productor = estado.productores.find((p) => p.id === parcela?.productorId);
@@ -37,6 +54,7 @@ function FilaCaso({ caso, activo, onAbrir }: { caso: Caso; activo: boolean; onAb
       >
         <span className="flex items-center justify-between gap-2">
           <span className="truncate font-semibold">
+            {orden !== undefined && <span className="text-stone-500">{orden}. </span>}
             {productor?.nombre} · {caso.barrera ? BARRERA[caso.barrera] : TEMA[caso.tema]}
           </span>
           {nuevo ? (
@@ -46,7 +64,10 @@ function FilaCaso({ caso, activo, onAbrir }: { caso: Caso; activo: boolean; onAb
           )}
         </span>
         <span className="block text-sm text-stone-600">
-          Sector {parcela?.sector ?? 'sin confirmar'} · {textoPlazo(caso.plazo, estado.ahora)}
+          {parcela?.proximoRiego
+            ? `Riega ${diaRelativo(parcela.proximoRiego, estado.ahora)} ${formatoHora(parcela.proximoRiego)}`
+            : 'Turno sin confirmar'}{' '}
+          · {PRIORIDAD[caso.prioridad].texto}
         </span>
       </button>
     </li>
@@ -90,9 +111,16 @@ function Bandeja({ casoId, onAbrir }: { casoId: string | null; onAbrir: (id: str
         </button>
       )}
 
+      {!todos && lista.length > 0 && <p className="px-1 pt-1 text-sm font-medium text-stone-700">{CRITERIO_BANDEJA}</p>}
       <ul className="space-y-1.5">
-        {lista.map((c) => (
-          <FilaCaso key={c.id} caso={c} activo={c.id === casoId} onAbrir={() => onAbrir(c.id)} />
+        {lista.map((c, i) => (
+          <FilaCaso
+            key={c.id}
+            caso={c}
+            orden={todos ? undefined : i + 1}
+            activo={c.id === casoId}
+            onAbrir={() => onAbrir(c.id)}
+          />
         ))}
       </ul>
       {lista.length === 0 && <p className="px-1 text-stone-600">No hay casos por atender.</p>}

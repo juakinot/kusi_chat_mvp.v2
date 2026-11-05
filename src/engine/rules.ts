@@ -37,7 +37,7 @@ export const REGLAS: Regla[] = [
     activa: true,
     ...VIGENCIA,
     descripcion:
-      'Si el reservorio está vacío, no hay reservorio o la respuesta es "No sé" dos veces, se abre un caso de prioridad alta con plazo antes del turno. KUSI no da instrucciones técnicas.',
+      'Si el reservorio está vacío, no hay reservorio o la respuesta es "No sé" dos veces, se abre un caso con plazo antes del turno: prioridad alta si riega hoy o mañana, y media si riega después. KUSI no da instrucciones técnicas.',
   },
   {
     id: 'R-SEG-01',

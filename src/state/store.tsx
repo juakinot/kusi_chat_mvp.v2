@@ -21,7 +21,7 @@ import {
 import type { Perfil } from '../engine/permisos';
 import type { Estado, NecesidadId, ReservorioEstado } from '../engine/types';
 
-const CLAVE = 'kusichat-2-v1';
+const CLAVE = 'kusichat-2-v2';
 
 export type Accion =
   | { type: 'AVISO_CAUDAL' }

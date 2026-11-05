@@ -22,7 +22,7 @@ La demo abre lista: el aviso ya salió a 40 parcelas y Rosa tiene el mensaje esp
 |---|---|---|---|
 | 0:00 | **Rosa** | Muestra el mensaje. Pulsa **Todavía no** y luego **No**. | "Rosa solo responde dos preguntas, como en WhatsApp." |
 | 0:40 | **Rosa** | Señala el panel de la derecha: caso nuevo, 8 → 9 y 8 → 7. | "Nadie hizo nada más. Esa conversación ya llegó a quien puede ayudar." |
-| 1:00 | **Diego** | Abre el caso de Rosa. Pulsa **Marcar En revisión**. | "Diego ve quién es, qué pasó y qué falta, sin reconstruir la conversación." |
+| 1:00 | **Diego** | Muestra que Rosa va primero. Abre su caso y pulsa **Marcar En revisión**. | "Rosa va primero porque riega antes. Diego ve quién es, qué pasó y qué falta, sin reconstruir la conversación." |
 | 1:30 | **Rosa** | Muestra "Tu caso: En revisión". | "Rosa sabe que la atienden sin tener que llamar." |
 | 1:45 | **Diego** | Pulsa **Enviar y programar**. Abre **Historial del caso**. | "La respuesta y el seguimiento quedan registrados." |
 | 2:05 | **Lucía** | Muestra 9 sin alternativa y 7 sin respuesta. Abre las necesidades y pulsa **Anotar para coordinar**. | "Lucía no lee chats. Ve que 5 tienen el reservorio vacío y 4 no tienen reservorio, y decide qué coordinar." |
@@ -93,6 +93,8 @@ Tres niveles de valor de los datos: memoria individual (implementada), inteligen
 - **Acción de Lucía.** *Anotar para coordinar* guarda un pendiente en el sistema. No envía nada, no reasigna agua y no lo marca como hecho.
 - **Sectores nuevos.** Se añadieron Medio y Cabecera para que los seis reportes sean tres del sector Alto y uno de cada otro sector. El registro sigue ofreciendo Bajo y Alto.
 - **Número nuevo.** Si alguien se registra en el sector Bajo con el aviso vigente, recibe el aviso y el total pasa a 41, porque es una parcela afectada más.
+- **Orden de la bandeja.** Prioridad y turno de riego más próximo. Sin alternativa y con turno hoy o mañana es prioridad alta; con turno posterior, media. Sin turno confirmado va como alta. Es una regla operativa, no agronómica.
+- **Respuestas escritas.** KUSI reconoce frases cortas de agua y seguimiento, sin IA, como "no tengo agua" o "ya regué". "No tengo agua" contesta las dos preguntas a la vez. Si no hay certeza, no adivina y pide usar los botones.
 - **Borrador de Diego.** Trae un texto neutro para ganar tiempo en la demo. No sugiere ninguna solución.
 - **Corrida de otro día.** Al abrir la demo en un día distinto, arranca de nuevo, para que "mañana" no apunte a una fecha pasada.
 

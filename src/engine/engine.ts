@@ -147,6 +147,7 @@ export function diaRelativo(fecha: string, ahora: string): string {
   const objetivo = fecha.length === 10 ? fecha : fechaLocal(fecha);
   if (objetivo === fechaLocal(ahora)) return 'hoy';
   if (objetivo === fechaLocal(enDia(ahora, 1, 12))) return 'mañana';
+  if (objetivo === fechaLocal(enDia(ahora, 2, 12))) return 'pasado mañana';
   if (objetivo === fechaLocal(enDia(ahora, -1, 12))) return 'ayer';
   return `el ${objetivo.split('-').reverse().join('/')}`;
 }
@@ -690,7 +691,12 @@ function sinAlternativa(
     sin_reservorio: `${nombre}, en tu ficha no figura un reservorio.`,
     no_confirmado: `${nombre}, no pude confirmar si tienes agua disponible.`,
   };
-  aRevision(t, caso, parcela, ahora, noDisponible ?? motivo, r03, datos, { texto: () => `${inicio[barrera]} ${enviar}` });
+  // Quien riega después de mañana puede esperar más. Sin turno confirmado no se asume nada: va como alta.
+  const turnoLejano = !noDisponible && parcela.proximoRiego !== '' && diasHasta(parcela.proximoRiego, ahora) > 1;
+  aRevision(t, caso, parcela, ahora, noDisponible ?? motivo, r03, datos, {
+    prioridad: turnoLejano ? 'media' : 'alta',
+    texto: () => `${inicio[barrera]} ${enviar}`,
+  });
   t.caso(caso.id, { situacion: 'sin_alternativa', barrera });
 }
 
@@ -760,7 +766,19 @@ function noSabe(t: Tx, caso: Caso, parcela: Parcela, ahora: string, repregunta: 
   repregunta();
 }
 
-export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: string, ahora: string): Resultado {
+/** Cuando la respuesta llegó escrita: se muestra tal cual y puede contestar también la pregunta siguiente. */
+interface RespuestaEscrita {
+  texto: string;
+  sinAgua?: boolean;
+}
+
+export function procesarRespuesta(
+  estado: Estado,
+  casoId: string,
+  respuestaId: string,
+  ahora: string,
+  escrita?: RespuestaEscrita,
+): Resultado {
   const t = transaccion(estado, ahora);
   const caso = estado.casos.find((c) => c.id === casoId);
   const parcela = estado.parcelas.find((p) => p.id === caso?.parcelaId);
@@ -777,12 +795,14 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
 
   const paso = caso.paso;
   t.cerrarBotones(caso.id, true);
-  t.mensaje({ parcelaId: parcela.id, casoId: caso.id, de: 'productor', texto: boton.etiqueta });
+  t.mensaje({ parcelaId: parcela.id, casoId: caso.id, de: 'productor', texto: escrita?.texto ?? boton.etiqueta });
   t.caso(caso.id, { respuestas: { ...caso.respuestas, [paso]: boton.etiqueta } });
   t.audit({
     tipo: 'mensaje',
-    datosUsados: { casoId: caso.id, paso, respuestaId },
-    resultado: `${nombreDe(estado, parcela.id)} respondió: "${boton.etiqueta}"`,
+    datosUsados: { casoId: caso.id, paso, respuestaId, escrito: escrita?.texto },
+    resultado: escrita
+      ? `${nombreDe(estado, parcela.id)} escribió "${escrita.texto}": se tomó como "${boton.etiqueta}"`
+      : `${nombreDe(estado, parcela.id)} respondió: "${boton.etiqueta}"`,
   });
 
   switch (`${paso}:${respuestaId}`) {
@@ -794,7 +814,14 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
       break;
     case 'inicial:todavia_no':
     case 'confirmar_turno:no_recibio':
-      preguntarReservorio(t, caso, parcela, ahora);
+      if (escrita?.sinAgua && parcela.tieneReservorio) {
+        // Ya dijo que no tiene agua: no se le repite la pregunta del reservorio.
+        t.caso(caso.id, { respuestas: { ...caso.respuestas, [paso]: boton.etiqueta, reservorio: 'No' } });
+        t.parcela(parcela.id, { reservorioEstado: 'vacio' });
+        sinAlternativa(t, caso, parcela, ahora, 'Reservorio vacío', { reservorioEstado: 'vacio', escrito: escrita.texto }, 'reservorio_vacio');
+      } else {
+        preguntarReservorio(t, caso, parcela, ahora);
+      }
       break;
     case 'inicial:no_se':
     case 'confirmar_turno:no_se':
@@ -1142,7 +1169,59 @@ export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, t
   return t.fin();
 }
 
-/** Texto libre: sin IA. "PERSONA" escala; lo demás recibe una respuesta fija. */
+// ---------- Respuestas escritas: frases cortas, sin IA ----------
+
+const normalizar = (texto: string) =>
+  texto
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const SIN_AGUA = /\b(no (tengo|tenemos|hay|queda|me queda)|sin|se (me )?acabo el) (nada de )?agua\b|\breservorio (esta )?(vacio|seco)\b/;
+const NO_SE = /^(no se|nose|no lo se|ni idea|no estoy segur[oa])$/;
+const SI_REGO = /^(si|ya|listo|regue|ya regue|si regue|si ya regue|ya esta)$/;
+const NO_REGO = /^(no|todavia|todavia no|aun no|no todavia|no regue|no he regado|no aun)$/;
+const SIN_RESERVA = /^(no|vacio|esta vacio|seco|esta seco|nada|no tiene|no tiene agua)$/;
+const CON_RESERVA = /^(si|tengo|tengo agua|si tengo|si tengo agua|hay agua|si hay|si hay agua|tiene agua|si tiene|si tiene agua)$/;
+
+/** Lleva una frase corta al botón que le corresponde. Si no hay certeza, devuelve null y no se adivina. */
+export function interpretarTexto(
+  paso: PasoConversacion,
+  parcela: Parcela,
+  texto: string,
+): { respuestaId: string; sinAgua?: boolean } | null {
+  const n = normalizar(texto);
+  const botones = botonesPara(paso, parcela);
+  const exacto = botones.find((b) => normalizar(b.etiqueta) === n);
+  if (exacto) return { respuestaId: exacto.id };
+  if (NO_SE.test(n) && botones.some((b) => b.id === 'no_se')) return { respuestaId: 'no_se' };
+
+  switch (paso) {
+    case 'inicial':
+    case 'confirmar_turno': {
+      const [si, no] = paso === 'inicial' ? ['ya_regue', 'todavia_no'] : ['si_recibio', 'no_recibio'];
+      if (SIN_AGUA.test(n)) return { respuestaId: no, sinAgua: true };
+      if (SI_REGO.test(n)) return { respuestaId: si };
+      if (NO_REGO.test(n)) return { respuestaId: no };
+      return null;
+    }
+    case 'reservorio':
+      if (SIN_AGUA.test(n) || SIN_RESERVA.test(n)) return { respuestaId: 'esta_vacio' };
+      if (CON_RESERVA.test(n)) return { respuestaId: 'si_agua' };
+      return null;
+    case 'seguimiento':
+      if (SI_REGO.test(n)) return { respuestaId: 'si_pude' };
+      if (NO_REGO.test(n)) return { respuestaId: 'no_pude' };
+      return null;
+    default:
+      return null;
+  }
+}
+
+/** Texto libre: sin IA. "PERSONA" escala, una frase corta contesta la pregunta abierta y lo demás recibe una respuesta fija. */
 export function procesarTextoLibre(estado: Estado, parcelaId: string, texto: string, ahora: string): Resultado {
   if (enRegistro(estado, parcelaId)) {
     if (/^\s*persona\s*$/i.test(texto)) return pedirPersona(estado, parcelaId, ahora, texto);
@@ -1150,6 +1229,14 @@ export function procesarTextoLibre(estado: Estado, parcelaId: string, texto: str
   }
   if (/^\s*baja\s*$/i.test(texto)) return darDeBaja(estado, parcelaId, texto, ahora);
   if (/(^|[^\p{L}])persona([^\p{L}]|$)/iu.test(texto)) return pedirPersona(estado, parcelaId, ahora, texto);
+
+  const parcela = estado.parcelas.find((p) => p.id === parcelaId);
+  const abierto = [...estado.casos].reverse().find((c) => c.parcelaId === parcelaId && c.paso);
+  const entendido = parcela && abierto?.paso ? interpretarTexto(abierto.paso, parcela, texto) : null;
+  if (abierto && entendido) {
+    return procesarRespuesta(estado, abierto.id, entendido.respuestaId, ahora, { texto, sinAgua: entendido.sinAgua });
+  }
+
   const t = transaccion(estado, ahora);
   t.mensaje({ parcelaId, de: 'productor', texto });
   t.audit({
