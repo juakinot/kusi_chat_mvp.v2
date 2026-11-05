@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { min-height: 100%; }
+body { background: #f5f5f0; color: #1f2a15; font-size: 15px; overflow-x: hidden; }
