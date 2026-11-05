@@ -15,6 +15,7 @@ export function crearEstadoInicial(inicio: string = inicioDemo()): Estado {
     productores: [
       { id: 'P-ROSA', nombre: 'Rosa', telefono: '+51 900 000 001', consentimiento: true },
       { id: 'P-JUAN', nombre: 'Juan', telefono: '+51 900 000 002', consentimiento: true },
+      { id: 'P-ELENA', nombre: 'Elena', telefono: '+51 900 000 003', consentimiento: true },
     ],
     parcelas: [
       {
@@ -28,6 +29,7 @@ export function crearEstadoInicial(inicio: string = inicioDemo()): Estado {
         reservorioEstado: 'con_agua',
         planAprobado:
           'Usar el agua del reservorio en el turno previsto, según tu plan revisado con el agrónomo.',
+        cuota: { concepto: 'cuota de agua', vence: enDia(inicio, 3, 23, 59), pagada: false, avisos: [] },
       },
       {
         id: 'PA-JUAN',
@@ -38,6 +40,18 @@ export function crearEstadoInicial(inicio: string = inicioDemo()): Estado {
         riegoPendiente: true,
         tieneReservorio: false,
         reservorioEstado: 'desconocido',
+        cuota: { concepto: 'cuota de agua', vence: enDia(inicio, 1, 23, 59), pagada: false, avisos: [] },
+      },
+      {
+        // Tiene agua, pero ningún agrónomo revisó un plan para su parcela. Tampoco registró su cuota.
+        id: 'PA-ELENA',
+        productorId: 'P-ELENA',
+        alias: 'Olivar de la quebrada',
+        sector: 'Alto',
+        proximoRiego: enDia(inicio, 1, 6),
+        riegoPendiente: true,
+        tieneReservorio: true,
+        reservorioEstado: 'con_agua',
       },
     ],
     reglas: REGLAS.map((r) => ({ ...r })),
@@ -60,6 +74,16 @@ export function eventoCorte(inicio: string): EventoAgua {
     emitidoEn: inicio,
     vigenteHasta: enDia(inicio, 1, 18),
     descripcion: 'Corte del canal en el sector Bajo',
+  };
+}
+
+export function eventoCaudalAlto(inicio: string): EventoAgua {
+  return {
+    ...eventoCorte(inicio),
+    id: 'EV-CAUDAL-ALTO',
+    tipo: 'reduccion_caudal',
+    sector: 'Alto',
+    descripcion: 'Reducción de caudal en el sector Alto',
   };
 }
 

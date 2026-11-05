@@ -49,4 +49,24 @@ export const REGLAS: Regla[] = [
     descripcion:
       'Al vencer el plazo (o al adelantar el tiempo), se pregunta qué ocurrió y el caso se cierra o queda pendiente.',
   },
+  {
+    id: 'R-REP-01',
+    version: 1,
+    nombre: 'Reporte de incidencia',
+    aprobadaPor: SIN_VALIDACION,
+    activa: true,
+    ...VIGENCIA,
+    descripcion:
+      'Si el productor reporta una plaga, un daño o menos agua, se abre un caso para el agrónomo. KUSI no diagnostica. Si hay dos reportes iguales en un sector, los casos suben a prioridad alta.',
+  },
+  {
+    id: 'R-AGE-01',
+    version: 1,
+    nombre: 'Recordatorio de cuota',
+    aprobadaPor: SIN_VALIDACION,
+    activa: true,
+    ...VIGENCIA,
+    descripcion:
+      'Si el productor registró una cuota sin pagar, se le recuerda 3 días y 1 día antes del vencimiento. KUSI no cobra ni se conecta con bancos.',
+  },
 ];

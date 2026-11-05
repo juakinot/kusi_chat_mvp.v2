@@ -3,13 +3,15 @@ import { formatoHora, indicadores, ordenarCasos } from '../engine/engine';
 import { useStore } from '../state/store';
 import { AuditLog } from './AuditLog';
 import { CaseDetail } from './CaseDetail';
-import { cuentaRegresiva, ESTADO_CASO, PRIORIDAD } from './etiquetas';
+import { Comparar } from './Comparar';
+import { cuentaRegresiva, ESTADO_CASO, PRIORIDAD, TEMA } from './etiquetas';
 
-type Pestana = 'bandeja' | 'detalle' | 'reglas' | 'auditoria';
+type Pestana = 'bandeja' | 'detalle' | 'comparar' | 'reglas' | 'auditoria';
 
 const PESTANAS: { id: Pestana; texto: string }[] = [
   { id: 'bandeja', texto: 'Bandeja' },
   { id: 'detalle', texto: 'Detalle del caso' },
+  { id: 'comparar', texto: 'Comparar' },
   { id: 'reglas', texto: 'Reglas' },
   { id: 'auditoria', texto: 'Auditoría' },
 ];
@@ -38,6 +40,9 @@ function Bandeja({ onAbrir }: { onAbrir: (id: string) => void }) {
               </span>
               <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${PRIORIDAD[c.prioridad].clase}`}>
                 {PRIORIDAD[c.prioridad].texto}
+              </span>
+              <span className="rounded-full bg-oliva-claro px-2 py-0.5 text-sm font-bold text-oliva-oscuro">
+                {TEMA[c.tema]}
               </span>
             </span>
             <span className="mt-1 block text-sm text-stone-700">
@@ -149,6 +154,7 @@ export function AgronomistPanel() {
           />
         )}
         {pestana === 'detalle' && <CaseDetail casoId={casoId} />}
+        {pestana === 'comparar' && <Comparar />}
         {pestana === 'reglas' && <Reglas />}
         {pestana === 'auditoria' && <AuditLog />}
       </div>

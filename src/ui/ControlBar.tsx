@@ -39,7 +39,7 @@ function Segmentado<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="col-span-2 flex items-center gap-2" role="group" aria-label={etiqueta}>
+    <div className="col-span-2 flex flex-wrap items-center gap-2" role="group" aria-label={etiqueta}>
       <span className="text-sm font-medium text-stone-700">{etiqueta}</span>
       <div className="flex overflow-hidden rounded-lg border border-stone-300 bg-white">
         {opciones.map((o) => (
@@ -70,9 +70,15 @@ export function ControlBar({ chatId, onChat }: { chatId: string; onChat: (id: st
         <Boton tono="principal" ancho onClick={() => dispatch({ type: 'AVISO_CORTE' })}>
           1. Llega aviso de corte (sector Bajo)
         </Boton>
+        <Boton tono="principal" ancho onClick={() => dispatch({ type: 'AVISO_CAUDAL' })}>
+          2. Menos caudal (sector Alto)
+        </Boton>
+        <Boton tono="principal" ancho onClick={() => dispatch({ type: 'AGENDA' })}>
+          3. Revisar cuotas de agua
+        </Boton>
         <Segmentado
           etiqueta="Reservorio de Rosa:"
-          valor={rosa?.reservorioEstado === 'vacio' ? 'vacio' : 'con_agua'}
+          valor={rosa?.reservorioEstado ?? 'desconocido'}
           opciones={[
             { valor: 'con_agua', texto: 'Con agua' },
             { valor: 'vacio', texto: 'Vacío' },

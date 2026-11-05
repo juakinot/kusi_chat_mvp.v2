@@ -9,6 +9,14 @@ export interface Productor {
 
 export type ReservorioEstado = 'con_agua' | 'vacio' | 'desconocido';
 
+/** Fecha que registra el productor. KUSI recuerda; no cobra ni se conecta con bancos. */
+export interface Cuota {
+  concepto: string;
+  vence: string; // ISO datetime
+  pagada: boolean;
+  avisos: number[]; // días de anticipación ya recordados
+}
+
 export interface Parcela {
   id: string;
   productorId: string;
@@ -19,6 +27,7 @@ export interface Parcela {
   tieneReservorio: boolean;
   reservorioEstado: ReservorioEstado;
   planAprobado?: string; // texto del paso acordado con el agrónomo
+  cuota?: Cuota;
 }
 
 export interface EventoAgua {
@@ -56,12 +65,24 @@ export type EstadoCaso =
 export type Prioridad = 'alta' | 'media' | 'baja';
 
 /** Pregunta que el caso espera que el productor conteste. */
-export type PasoConversacion = 'inicial' | 'confirmar_turno' | 'reservorio' | 'seguimiento';
+export type PasoConversacion =
+  | 'inicial'
+  | 'confirmar_turno'
+  | 'reservorio'
+  | 'seguimiento'
+  | 'plaga_desde'
+  | 'dano_personas'
+  | 'dano_que'
+  | 'pago';
+
+/** Motivo de la consulta. */
+export type Tema = 'agua' | 'plaga' | 'dano' | 'pago' | 'persona';
 
 export interface Caso {
   id: string;
   parcelaId: string;
   eventoId: string;
+  tema: Tema;
   estado: EstadoCaso;
   prioridad: Prioridad;
   plazo?: string; // ISO datetime

@@ -15,7 +15,7 @@ function Ticks({ estado }: { estado: Mensaje['estadoEnvio'] }) {
   );
 }
 
-function Burbuja({ m, onBoton }: { m: Mensaje; onBoton: (casoId: string, respuestaId: string) => void }) {
+function Burbuja({ m, onBoton }: { m: Mensaje; onBoton: (m: Mensaje, botonId: string) => void }) {
   const delProductor = m.de === 'productor';
   const fondo = delProductor ? 'bg-white' : m.de === 'agronomo' ? 'bg-amber-100' : 'bg-[#d9fdd3]';
   return (
@@ -32,7 +32,7 @@ function Burbuja({ m, onBoton }: { m: Mensaje; onBoton: (casoId: string, respues
           {m.botones.map((b) => (
             <button
               key={b.id}
-              onClick={() => m.casoId && onBoton(m.casoId, b.id)}
+              onClick={() => onBoton(m, b.id)}
               className="min-h-11 rounded-lg border border-oliva/40 bg-white px-3 py-2 text-[15px] font-semibold text-oliva-oscuro shadow-sm hover:bg-oliva-claro"
             >
               {b.etiqueta}
@@ -61,6 +61,11 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
   useEffect(() => {
     if (lista.current) lista.current.scrollTop = lista.current.scrollHeight;
   }, [mensajes.length, parcelaId, vista]);
+
+  const pulsar = (m: Mensaje, botonId: string) => {
+    if (m.casoId) dispatch({ type: 'RESPONDER', casoId: m.casoId, respuestaId: botonId });
+    else dispatch({ type: 'CONSULTA', parcelaId, consultaId: botonId });
+  };
 
   const enviar = (e: FormEvent) => {
     e.preventDefault();
@@ -123,19 +128,27 @@ export function PhoneChat({ parcelaId }: { parcelaId: string }) {
                     {FECHA.format(new Date(m.hora))}
                   </p>
                 )}
-                <Burbuja m={m} onBoton={(casoId, respuestaId) => dispatch({ type: 'RESPONDER', casoId, respuestaId })} />
+                <Burbuja m={m} onBoton={pulsar} />
               </div>
             );
           })}
         </div>
 
         <div className={`border-t border-stone-300 bg-[#f6f1ea] p-2 ${vista === 'chat' ? '' : 'hidden'}`}>
-          <button
-            onClick={() => dispatch({ type: 'PERSONA', parcelaId })}
-            className="mb-2 min-h-11 w-full rounded-lg bg-oliva-oscuro px-3 text-sm font-bold tracking-wide text-white hover:bg-oliva"
-          >
-            PERSONA
-          </button>
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => dispatch({ type: 'MENU', parcelaId })}
+              className="min-h-11 rounded-lg border border-oliva bg-white px-3 text-sm font-bold tracking-wide text-oliva-oscuro hover:bg-oliva-claro"
+            >
+              MENÚ
+            </button>
+            <button
+              onClick={() => dispatch({ type: 'PERSONA', parcelaId })}
+              className="min-h-11 rounded-lg bg-oliva-oscuro px-3 text-sm font-bold tracking-wide text-white hover:bg-oliva"
+            >
+              PERSONA
+            </button>
+          </div>
           <form onSubmit={enviar} className="flex gap-2">
             <input
               value={texto}

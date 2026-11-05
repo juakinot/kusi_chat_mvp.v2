@@ -1,23 +1,30 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from 'react';
-import { crearEstadoInicial, eventoCorte, eventoSinFuente, eventoVencido } from '../data/seed';
+import { crearEstadoInicial, eventoCaudalAlto, eventoCorte, eventoSinFuente, eventoVencido } from '../data/seed';
 import {
   adelantarTiempo,
   alternarRegla,
   aplicar,
   cambiarReservorio,
   cerrarCaso,
+  iniciarConsulta,
+  mostrarMenu,
   pedirPersona,
   procesarEvento,
   procesarRespuesta,
   procesarTextoLibre,
   responderComoAgronomo,
+  revisarAgenda,
 } from '../engine/engine';
 import type { Estado, ReservorioEstado } from '../engine/types';
 
-const CLAVE = 'kusichat-mvp-v1';
+const CLAVE = 'kusichat-mvp-v2';
 
 export type Accion =
   | { type: 'AVISO_CORTE' }
+  | { type: 'AVISO_CAUDAL' }
+  | { type: 'AGENDA' }
+  | { type: 'MENU'; parcelaId: string }
+  | { type: 'CONSULTA'; parcelaId: string; consultaId: string }
   | { type: 'AVISO_VENCIDO' }
   | { type: 'AVISO_SIN_FUENTE' }
   | { type: 'RESERVORIO'; parcelaId: string; valor: ReservorioEstado }
@@ -36,6 +43,14 @@ function reducer(e: Estado, a: Accion): Estado {
   switch (a.type) {
     case 'AVISO_CORTE':
       return aplicar(e, procesarEvento(e, eventoCorte(e.inicio), ahora));
+    case 'AVISO_CAUDAL':
+      return aplicar(e, procesarEvento(e, eventoCaudalAlto(e.inicio), ahora));
+    case 'AGENDA':
+      return aplicar(e, revisarAgenda(e, ahora));
+    case 'MENU':
+      return aplicar(e, mostrarMenu(e, a.parcelaId, ahora));
+    case 'CONSULTA':
+      return aplicar(e, iniciarConsulta(e, a.parcelaId, a.consultaId, ahora));
     case 'AVISO_VENCIDO':
       return aplicar(e, procesarEvento(e, eventoVencido(ahora), ahora));
     case 'AVISO_SIN_FUENTE':

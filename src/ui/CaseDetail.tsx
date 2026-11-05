@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { diaRelativo, formatoHora, INGENIERO } from '../engine/engine';
 import { useStore } from '../state/store';
-import { cuentaRegresiva, ESTADO_CASO, PRIORIDAD } from './etiquetas';
+import type { Tema } from '../engine/types';
+import { cuentaRegresiva, ESTADO_CASO, PRIORIDAD, TEMA } from './etiquetas';
 
 function Ficha({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
@@ -12,6 +13,14 @@ function Ficha({ titulo, children }: { titulo: string; children: ReactNode }) {
   );
 }
 
+const SIN_EVENTO_TEXTO: Record<Tema, string> = {
+  agua: 'Reportado por el productor. Sin aviso verificado.',
+  plaga: 'Reportado por el productor. KUSI no diagnostica.',
+  dano: 'Reportado por el productor.',
+  pago: 'Fecha registrada por el productor.',
+  persona: 'Sin evento asociado: el productor pidió una persona.',
+};
+
 const RESERVORIO = { con_agua: 'con agua', vacio: 'vacío', desconocido: 'estado desconocido' };
 
 export function CaseDetail({ casoId }: { casoId: string | null }) {
@@ -21,7 +30,14 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
   const productor = estado.productores.find((p) => p.id === parcela?.productorId);
   const evento = estado.eventos.find((e) => e.id === caso?.eventoId);
 
-  const textoInicial = `${productor?.nombre}, vi tu reporte del sector ${parcela?.sector}. ¿Hay otro turno que te hayan confirmado? Avísame y revisamos tu plan juntos.`;
+  const textosIniciales: Record<Tema, string> = {
+    agua: `${productor?.nombre}, vi tu reporte del sector ${parcela?.sector}. ¿Hay otro turno que te hayan confirmado? Avísame y revisamos tu plan juntos.`,
+    plaga: `${productor?.nombre}, vi tu reporte. Necesito una foto de cerca del envés de la hoja. ¿Puedes enviarla hoy?`,
+    dano: `${productor?.nombre}, vi tu reporte de daño en "${parcela?.alias}". ¿A qué hora puedo llamarte para revisarlo?`,
+    pago: `${productor?.nombre}, vi tu consulta sobre la cuota. ¿En qué te ayudo?`,
+    persona: `${productor?.nombre}, soy el Ing. Responsable. ¿En qué te ayudo?`,
+  };
+  const textoInicial = caso ? textosIniciales[caso.tema] : '';
   const [borrador, setBorrador] = useState<{ casoId: string | null; texto: string }>({ casoId: null, texto: '' });
   const texto = borrador.casoId === casoId ? borrador.texto : textoInicial;
 
@@ -43,6 +59,9 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
         <span className="rounded-full bg-stone-200 px-2 py-0.5 text-sm font-bold text-stone-800">
           {ESTADO_CASO[caso.estado]}
         </span>
+        <span className="rounded-full bg-oliva-claro px-2 py-0.5 text-sm font-bold text-oliva-oscuro">
+          {TEMA[caso.tema]}
+        </span>
       </div>
 
       <div className="rounded-lg bg-oliva-claro p-3 text-sm">
@@ -62,6 +81,14 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
             Reservorio: {parcela.tieneReservorio ? RESERVORIO[parcela.reservorioEstado] : 'no tiene'}
           </p>
           <p>Plan aprobado: {parcela.planAprobado ?? 'sin plan'}</p>
+          <p>
+            Cuota:{' '}
+            {parcela.cuota
+              ? parcela.cuota.pagada
+                ? 'pagada'
+                : `vence ${diaRelativo(parcela.cuota.vence, estado.ahora)}`
+              : 'sin fecha registrada'}
+          </p>
         </Ficha>
 
         <Ficha titulo="Evento y fuente">
@@ -75,7 +102,7 @@ export function CaseDetail({ casoId }: { casoId: string | null }) {
               <p>Vigente hasta: {fecha(evento.vigenteHasta)}</p>
             </>
           ) : (
-            <p>Sin evento asociado: el productor pidió una persona.</p>
+            <p>{SIN_EVENTO_TEXTO[caso.tema]}</p>
           )}
         </Ficha>
 

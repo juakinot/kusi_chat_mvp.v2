@@ -25,6 +25,20 @@ Para publicar, sube `dist/` a Vercel o Netlify (`npx vercel dist --prod`, o arra
 
 6. Opcional: pestaña **Venta** en el teléfono. Con el ejemplo cargado, "En chacra" deja S/ 50,00 más.
 
+## Contraste entre perfiles
+
+La pestaña **Comparar** del panel corre el mismo motivo con los tres perfiles usando el motor real, sin enviar mensajes. Cambia si suspendes una regla o mueves el reservorio de Rosa.
+
+| | Rosa | Juan | Elena |
+|---|---|---|---|
+| Ficha | Sector Bajo, reservorio con agua y plan | Sector Alto, sin reservorio | Sector Alto, reservorio con agua, sin plan |
+| Corte de agua | Paso del plan y seguimiento | Agrónomo: no tiene reservorio | Agrónomo: no hay plan aprobado |
+| Daño en la chacra | Puede reportar su reservorio; el plan queda en revisión | No ve esa opción | Puede reportar su reservorio |
+| Cuota de agua | Recordatorio 3 días antes | Recordatorio 1 día antes | Nada: no registró fecha |
+| Plaga o menos agua | Caso para el agrónomo | Dos reportes en el sector suben a prioridad alta | Dos reportes en el sector suben a prioridad alta |
+
+Para verlo en vivo: **2. Menos caudal** avisa a Juan y a Elena, no a Rosa. Con **3. Revisar cuotas** Rosa y Juan reciben textos distintos y Elena nada. El botón **MENÚ** del teléfono abre las consultas del productor.
+
 ## Implementado, simulado y pendiente
 
 | Implementado | Simulado | Pendiente para el piloto |
@@ -52,4 +66,10 @@ Para publicar, sube `dist/` a Vercel o Netlify (`npx vercel dist --prod`, o arra
 - **Respuesta del agrónomo.** El caso sigue abierto y el plazo se da por cumplido, hasta que pulse "Cerrar caso".
 - **Textos añadidos.** El guion no definía los acuses de "Sí pude", "No pude" y PERSONA, ni la repregunta del reservorio. Son breves y no dan instrucciones técnicas.
 - **Comparador de ofertas.** Un campo vacío no se cuenta como cero: el resultado espera a que estén todos los datos.
+- **Elena.** Es un tercer perfil ficticio, en el sector Alto, para que el corte del sector Bajo siga llegando solo a Rosa.
+- **Motivos nuevos.** Plaga, daño, menos agua y cuota salen del informe (funciones B y E1). El aviso fitosanitario estacional (A2) quedó fuera porque el informe lo deja para la Fase 2.
+- **Fotos y audio.** El reporte de plaga va con botones; la foto y el audio quedan para el piloto.
+- **Dos reportes iguales en un sector.** Suben a prioridad alta. Solo cuenta casos: no es un diagnóstico.
+- **Reservorio dañado.** Retira el plan de la parcela, así que el siguiente corte va al agrónomo.
+- **Cuotas.** Se revisan con el botón, no al adelantar el tiempo, para no mezclar mensajes en el guion del agua.
 - **Avisos repetidos.** "Enviar aviso vencido" y "sin fuente" usan un id fijo: la segunda pulsación registra "Evento duplicado ignorado".

@@ -11,6 +11,7 @@ import type {
   Regla,
   ReservorioEstado,
   Resultado,
+  Tema,
 } from './types';
 
 export const SISTEMA = 'Sistema';
@@ -42,7 +43,40 @@ export const BOTONES: Record<PasoConversacion, BotonRespuesta[]> = {
     { id: 'no_pude', etiqueta: 'No pude' },
     { id: 'necesito_persona', etiqueta: 'Necesito una persona' },
   ],
+  plaga_desde: [
+    { id: 'esta_semana', etiqueta: 'Esta semana' },
+    { id: 'mas_tiempo', etiqueta: 'Hace más tiempo' },
+    { id: 'no_se', etiqueta: 'No sé' },
+  ],
+  dano_personas: [
+    { id: 'si_personas', etiqueta: 'Sí' },
+    { id: 'no_personas', etiqueta: 'No' },
+  ],
+  dano_que: [
+    { id: 'dano_canal', etiqueta: 'El canal o la toma' },
+    { id: 'dano_arboles', etiqueta: 'Los árboles' },
+    { id: 'dano_reservorio', etiqueta: 'Mi reservorio' },
+  ],
+  pago: [
+    { id: 'ya_pague', etiqueta: 'Ya pagué' },
+    { id: 'pago_no', etiqueta: 'Todavía no' },
+  ],
 };
+
+export const MENU: BotonRespuesta[] = [
+  { id: 'plaga', etiqueta: 'Vi una plaga' },
+  { id: 'dano', etiqueta: 'Daño en la chacra' },
+  { id: 'menos_agua', etiqueta: 'Llega menos agua' },
+  { id: 'cuota', etiqueta: 'Mi cuota de agua' },
+];
+
+/** Las opciones dependen de la ficha: quien no tiene reservorio no lo ve en la lista. */
+export function botonesPara(paso: PasoConversacion, parcela: Parcela): BotonRespuesta[] {
+  if (paso === 'dano_que' && !parcela.tieneReservorio) {
+    return BOTONES.dano_que.filter((b) => b.id !== 'dano_reservorio');
+  }
+  return BOTONES[paso];
+}
 
 // ---------- Fechas (hora local) ----------
 
@@ -82,6 +116,27 @@ export function diaRelativo(fecha: string, ahora: string): string {
 }
 
 const despues = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
+
+/** Días de calendario que faltan para `iso`. */
+export function diasHasta(iso: string, ahora: string): number {
+  const dia = (x: string) => {
+    const d = new Date(x);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  return Math.round((dia(iso) - dia(ahora)) / 86_400_000);
+}
+
+const DIA_SEMANA = new Intl.DateTimeFormat('es-PE', { weekday: 'long' });
+
+/** "hoy", "mañana" o "el domingo". */
+function cuandoVence(iso: string, ahora: string): string {
+  const dias = diasHasta(iso, ahora);
+  if (dias === 0) return 'hoy';
+  if (dias === 1) return 'mañana';
+  return `el ${DIA_SEMANA.format(new Date(iso))}`;
+}
+
+const mayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
 // ---------- Transacción: acumula cambios y auditoría sin mutar la entrada ----------
 
@@ -141,6 +196,15 @@ function transaccion(estado: Estado, ahora: string) {
           m.casoId === casoId && m.botones
             ? { ...m, botones: undefined, estadoEnvio: marcarRespondido ? 'respondido' : m.estadoEnvio }
             : m,
+        ),
+      };
+    },
+    /** Quita el menú anterior de la parcela. */
+    cerrarMenu(parcelaId: string) {
+      s = {
+        ...s,
+        mensajes: s.mensajes.map((m) =>
+          m.parcelaId === parcelaId && m.botones && !m.casoId ? { ...m, botones: undefined } : m,
         ),
       };
     },
@@ -274,6 +338,7 @@ export function procesarEvento(estado: Estado, evento: EventoAgua, ahora: string
       id: casoId,
       parcelaId: parcela.id,
       eventoId: evento.id,
+      tema: 'agua',
       estado: 'pendiente_respuesta',
       prioridad: 'media',
       plazo: parcela.proximoRiego,
@@ -314,9 +379,9 @@ function plazoRevision(parcela: Parcela, ahora: string): string {
   return plazo;
 }
 
-function preguntar(t: Tx, caso: Caso, paso: PasoConversacion, texto: string) {
+function preguntar(t: Tx, caso: Caso, paso: PasoConversacion, texto: string, botones = BOTONES[paso]) {
   t.caso(caso.id, { paso });
-  t.mensaje({ parcelaId: caso.parcelaId, casoId: caso.id, de: 'kusi', texto, botones: BOTONES[paso] });
+  t.mensaje({ parcelaId: caso.parcelaId, casoId: caso.id, de: 'kusi', texto, botones });
 }
 
 function cerrarPorRiego(t: Tx, caso: Caso, parcela: Parcela, motivo: string) {
@@ -340,24 +405,219 @@ function aRevision(
   motivo: string,
   r: Regla,
   datos: Record<string, unknown>,
+  opciones: { prioridad?: Prioridad; texto?: (hora: string) => string } = {},
 ) {
   const plazo = plazoRevision(parcela, ahora);
+  const prioridad = opciones.prioridad ?? 'alta';
+  const hora = formatoHora(plazo);
   t.caso(caso.id, {
     estado: 'revision_tecnica',
-    prioridad: 'alta',
+    prioridad,
     plazo,
     paso: undefined,
     motivo,
     reglaId: r.id,
     reglaVersion: r.version,
   });
-  t.auditRegla(r, { ...datos, plazo }, `Caso ${caso.id} a revisión técnica, prioridad alta: ${motivo}`);
+  t.auditRegla(r, { ...datos, plazo }, `Caso ${caso.id} a revisión técnica, prioridad ${prioridad}: ${motivo}`);
   t.mensaje({
     parcelaId: caso.parcelaId,
     casoId: caso.id,
     de: 'kusi',
-    texto: `Entendido. Pasé tu caso al Ing. Responsable como prioritario. Te escribirá antes de las ${formatoHora(plazo)} Mientras tanto no necesitas hacer nada más.`,
+    texto:
+      opciones.texto?.(hora) ??
+      `Entendido. Pasé tu caso al Ing. Responsable como prioritario. Te escribirá antes de las ${hora} Mientras tanto no necesitas hacer nada más.`,
   });
+}
+
+// ---------- Reportes del productor: plaga, daño y menos agua ----------
+
+const ETIQUETA_REPORTE: Partial<Record<Tema, string>> = { plaga: 'plaga', dano: 'daño', agua: 'menos agua' };
+
+function abrirCaso(t: Tx, parcela: Parcela, ahora: string, tema: Tema, plazo: string, motivo: string): Caso {
+  const caso: Caso = {
+    id: t.nuevoId('C'),
+    parcelaId: parcela.id,
+    eventoId: SIN_EVENTO,
+    tema,
+    estado: 'pendiente_respuesta',
+    prioridad: 'media',
+    plazo,
+    responsable: INGENIERO,
+    respuestas: {},
+    motivo,
+    creadoEn: ahora,
+    actualizadoEn: ahora,
+    conteoNoSe: 0,
+  };
+  t.set({ casos: [...t.estado.casos, caso] });
+  return caso;
+}
+
+/** Dos reportes iguales en un sector suben a prioridad alta. No es un diagnóstico: solo cuenta casos. */
+function revisarFoco(t: Tx, caso: Caso, parcela: Parcela, r: Regla) {
+  const delSector = (c: Caso) =>
+    t.estado.parcelas.find((p) => p.id === c.parcelaId)?.sector === parcela.sector;
+  const reportes = t.estado.casos.filter(
+    (c) => c.tema === caso.tema && c.eventoId === SIN_EVENTO && c.estado !== 'cerrado' && delSector(c),
+  );
+  if (reportes.length < 2) return;
+  const nota = `${reportes.length} reportes de ${ETIQUETA_REPORTE[caso.tema]} en el sector ${parcela.sector}`;
+  for (const c of reportes) {
+    t.caso(c.id, { prioridad: 'alta', motivo: `${c.motivo.replace(/ · \d+ reportes.*$/, '')} · ${nota}` });
+  }
+  t.auditRegla(r, { sector: parcela.sector, casos: reportes.map((c) => c.id) }, `Posible foco: ${nota}`);
+}
+
+function reporteARevision(
+  t: Tx,
+  caso: Caso,
+  parcela: Parcela,
+  ahora: string,
+  motivo: string,
+  datos: Record<string, unknown>,
+  opciones: { prioridad?: Prioridad; texto?: (hora: string) => string } = {},
+) {
+  const r = regla(t.estado, 'R-REP-01');
+  const noDisponible = reglaNoDisponible(r, ahora);
+  aRevision(t, caso, parcela, ahora, noDisponible ?? motivo, r, datos, noDisponible ? {} : opciones);
+  revisarFoco(t, caso, parcela, r);
+}
+
+function reportarMenosAgua(t: Tx, parcela: Parcela, ahora: string) {
+  const r = regla(t.estado, 'R-REP-01');
+  const aviso = t.estado.eventos.find((e) => e.sector === parcela.sector && !despues(ahora, e.vigenteHasta));
+  if (aviso) {
+    t.auditRegla(
+      r,
+      { parcelaId: parcela.id, eventoId: aviso.id },
+      `Reporte de menos agua cubierto por el aviso ${aviso.id}: no se abre caso`,
+    );
+    t.mensaje({
+      parcelaId: parcela.id,
+      de: 'kusi',
+      texto: `Ya tenemos un aviso verificado para el sector ${parcela.sector}, válido hasta ${diaRelativo(aviso.vigenteHasta, ahora)} ${formatoHora(aviso.vigenteHasta)} Si tu caso es distinto, pulsa PERSONA.`,
+    });
+    return;
+  }
+  const caso = abrirCaso(t, parcela, ahora, 'agua', plazoRevision(parcela, ahora), 'Reporte de menos agua');
+  reporteARevision(t, caso, parcela, ahora, 'Reporte de menos agua, sin aviso verificado', { sector: parcela.sector }, {
+    prioridad: 'media',
+    texto: (hora) =>
+      `Recibimos tu reporte del sector ${parcela.sector}. El agrónomo lo revisará antes de las ${hora} No avisamos a otros productores hasta confirmarlo.`,
+  });
+}
+
+function informarCuota(t: Tx, parcela: Parcela, ahora: string) {
+  const r = regla(t.estado, 'R-AGE-01');
+  const cuota = parcela.cuota;
+  let texto = `No tengo una fecha de cuota registrada para "${parcela.alias}". Pulsa PERSONA si quieres registrarla.`;
+  if (cuota?.pagada) texto = `Tu ${cuota.concepto} ya figura como pagada.`;
+  else if (cuota) texto = `Tu ${cuota.concepto} vence ${cuandoVence(cuota.vence, ahora)}.`;
+  t.auditRegla(r, { parcelaId: parcela.id, cuota: cuota ?? null }, `Consulta de cuota respondida con la ficha de ${nombreDe(t.estado, parcela.id)}`);
+  t.mensaje({ parcelaId: parcela.id, de: 'kusi', texto });
+}
+
+/** Botón MENÚ del teléfono: el productor inicia la consulta. */
+export function mostrarMenu(estado: Estado, parcelaId: string, ahora: string): Resultado {
+  const t = transaccion(estado, ahora);
+  t.cerrarMenu(parcelaId);
+  t.mensaje({ parcelaId, de: 'productor', texto: 'MENÚ' });
+  t.mensaje({ parcelaId, de: 'kusi', texto: '¿En qué te ayudo?', botones: MENU });
+  return t.fin();
+}
+
+export function iniciarConsulta(estado: Estado, parcelaId: string, consultaId: string, ahora: string): Resultado {
+  const t = transaccion(estado, ahora);
+  const parcela = estado.parcelas.find((p) => p.id === parcelaId);
+  const boton = MENU.find((b) => b.id === consultaId);
+  if (!parcela || !boton) return t.fin();
+
+  t.cerrarMenu(parcelaId);
+  t.mensaje({ parcelaId, de: 'productor', texto: boton.etiqueta });
+  t.audit({
+    tipo: 'mensaje',
+    datosUsados: { parcelaId, consultaId },
+    resultado: `${nombreDe(estado, parcelaId)} consultó: "${boton.etiqueta}"`,
+  });
+
+  switch (consultaId) {
+    case 'plaga': {
+      const caso = abrirCaso(t, parcela, ahora, 'plaga', sumarHoras(ahora, 24), 'Reporte de plaga en curso');
+      preguntar(t, caso, 'plaga_desde', `Recibí tu reporte de "${parcela.alias}". ¿Desde cuándo lo ves?`);
+      break;
+    }
+    case 'dano': {
+      const caso = abrirCaso(t, parcela, ahora, 'dano', sumarHoras(ahora, 24), 'Reporte de daño en curso');
+      preguntar(t, caso, 'dano_personas', '¿Hay personas heridas o en peligro?');
+      break;
+    }
+    case 'menos_agua':
+      reportarMenosAgua(t, parcela, ahora);
+      break;
+    case 'cuota':
+      informarCuota(t, parcela, ahora);
+      break;
+  }
+  return t.fin();
+}
+
+/** R-AGE-01: recuerda 3 días y 1 día antes. Sin fecha registrada no se asume nada. */
+export function revisarAgenda(estado: Estado, ahora: string): Resultado {
+  const t = transaccion(estado, ahora);
+  const r = regla(estado, 'R-AGE-01');
+  const noDisponible = reglaNoDisponible(r, ahora);
+  if (noDisponible) {
+    t.auditRegla(r, {}, `Recordatorios bloqueados: ${noDisponible}`, 'bloqueo');
+    return t.fin();
+  }
+
+  for (const parcela of estado.parcelas) {
+    const nombre = nombreDe(estado, parcela.id);
+    const cuota = parcela.cuota;
+    const datos = { parcelaId: parcela.id, cuota: cuota ?? null };
+    if (!cuota) {
+      t.auditRegla(r, datos, `${nombre} no registró fecha de cuota: no se envía nada`);
+      continue;
+    }
+    if (cuota.pagada) {
+      t.auditRegla(r, datos, `Cuota de ${nombre} ya pagada: no se envía nada`);
+      continue;
+    }
+    const dias = diasHasta(cuota.vence, ahora);
+    if (dias !== 3 && dias !== 1) {
+      t.auditRegla(r, datos, `Cuota de ${nombre}: faltan ${dias} días, no toca recordatorio`);
+      continue;
+    }
+    if (cuota.avisos.includes(dias)) {
+      t.auditRegla(r, datos, `Recordatorio duplicado ignorado (${nombre}, ${dias} días antes)`);
+      continue;
+    }
+    t.parcela(parcela.id, { cuota: { ...cuota, avisos: [...cuota.avisos, dias] } });
+    const caso = abrirCaso(t, parcela, ahora, 'pago', cuota.vence, 'Recordatorio de cuota enviado');
+    t.caso(caso.id, { prioridad: 'baja', reglaId: r.id, reglaVersion: r.version });
+    t.auditRegla(r, { ...datos, dias }, `Recordatorio a ${nombre}: faltan ${dias} días`);
+    preguntar(t, caso, 'pago', `${mayuscula(cuandoVence(cuota.vence, ahora))} vence tu ${cuota.concepto}. ¿Ya la pagaste?`);
+  }
+  return t.fin();
+}
+
+function responderPago(t: Tx, caso: Caso, parcela: Parcela, ahora: string, pagado: boolean) {
+  const r = regla(t.estado, 'R-AGE-01');
+  const cuota = parcela.cuota;
+  const quedaRecordatorio = cuota ? diasHasta(cuota.vence, ahora) > 1 : false;
+  let motivo = 'Cuota pagada según el productor';
+  let texto = 'Perfecto, lo registré.';
+  if (pagado && cuota) t.parcela(parcela.id, { cuota: { ...cuota, pagada: true } });
+  if (!pagado) {
+    motivo = quedaRecordatorio ? 'Queda el recordatorio de 1 día antes' : 'Último recordatorio entregado';
+    texto = quedaRecordatorio
+      ? 'Listo. Te lo recuerdo 1 día antes. KUSI no recibe pagos.'
+      : 'Entendido. Si necesitas ayuda, pulsa PERSONA. KUSI no recibe pagos.';
+  }
+  t.caso(caso.id, { estado: 'cerrado', paso: undefined, plazo: undefined, motivo });
+  t.auditRegla(r, { casoId: caso.id, pagado }, `Caso ${caso.id} cerrado: ${motivo}`);
+  t.mensaje({ parcelaId: parcela.id, casoId: caso.id, de: 'kusi', texto });
 }
 
 /** R-AGUA-03: sin alternativa, el caso pasa al agrónomo. */
@@ -525,6 +785,39 @@ export function procesarRespuesta(estado: Estado, casoId: string, respuestaId: s
         respuesta: respuestaId,
       });
       break;
+    case 'plaga_desde:esta_semana':
+    case 'plaga_desde:mas_tiempo':
+    case 'plaga_desde:no_se':
+      reporteARevision(t, caso, parcela, ahora, `Plaga observada (${boton.etiqueta.toLowerCase()})`, { desde: respuestaId }, {
+        texto: (hora) =>
+          `El agrónomo lo revisará y te escribirá antes de las ${hora} No apliques productos hasta que te responda.`,
+      });
+      break;
+    case 'dano_personas:si_personas':
+      aRevision(t, caso, parcela, ahora, 'Emergencia: personas en peligro', regla(estado, 'R-REP-01'), { respuesta: respuestaId }, {
+        texto: () => 'Esto supera a KUSICHAT. Llama ahora a emergencias y a la municipalidad. También avisé al Ing. Responsable.',
+      });
+      break;
+    case 'dano_personas:no_personas':
+      preguntar(t, caso, 'dano_que', '¿Qué se dañó?', botonesPara('dano_que', parcela));
+      break;
+    case 'dano_que:dano_canal':
+    case 'dano_que:dano_arboles':
+      reporteARevision(t, caso, parcela, ahora, `Daño reportado: ${boton.etiqueta.toLowerCase()}`, { respuesta: respuestaId });
+      break;
+    case 'dano_que:dano_reservorio':
+      t.parcela(parcela.id, { reservorioEstado: 'desconocido', planAprobado: undefined });
+      reporteARevision(t, caso, parcela, ahora, 'Reservorio dañado: el plan queda en revisión', {
+        reservorioEstado: 'desconocido',
+        planAnterior: parcela.planAprobado ?? null,
+      });
+      break;
+    case 'pago:ya_pague':
+      responderPago(t, caso, parcela, ahora, true);
+      break;
+    case 'pago:pago_no':
+      responderPago(t, caso, parcela, ahora, false);
+      break;
   }
   return t.fin();
 }
@@ -548,6 +841,7 @@ export function pedirPersona(estado: Estado, parcelaId: string, ahora: string, t
       id: t.nuevoId('C'),
       parcelaId,
       eventoId: SIN_EVENTO,
+      tema: 'persona',
       estado: 'revision_tecnica',
       prioridad: 'media',
       plazo,
@@ -641,7 +935,12 @@ export function adelantarTiempo(estado: Estado, horas: number): Resultado {
     const esperaRespuesta = ['pendiente_respuesta', 'revision_tecnica', 'seguimiento_pendiente'].includes(caso.estado);
     if (esperaRespuesta && caso.plazo && despues(ahora, caso.plazo)) {
       t.cerrarBotones(caso.id, false);
-      t.caso(caso.id, { estado: 'vencido', prioridad: 'alta', paso: undefined, motivo: 'Plazo vencido sin respuesta' });
+      t.caso(caso.id, {
+        estado: 'vencido',
+        prioridad: caso.tema === 'pago' ? caso.prioridad : 'alta',
+        paso: undefined,
+        motivo: 'Plazo vencido sin respuesta',
+      });
       t.audit({
         tipo: 'caso',
         datosUsados: { casoId: caso.id, plazo: caso.plazo, estadoAnterior: caso.estado },
