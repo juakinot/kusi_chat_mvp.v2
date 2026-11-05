@@ -26,7 +26,7 @@ La demo abre lista: el aviso ya salió a 40 parcelas y Rosa tiene el mensaje esp
 | 1:30 | **Rosa** | Muestra "Tu caso: En revisión". | "Rosa sabe que la atienden sin tener que llamar." |
 | 1:45 | **Diego** | Pulsa **Enviar y programar**. Abre **Historial del caso**. | "La respuesta y el seguimiento quedan registrados." |
 | 2:05 | **Lucía** | Muestra 9 sin alternativa y 7 sin respuesta. Abre las necesidades y pulsa **Anotar para coordinar**. | "Lucía no lee chats. Ve que 5 tienen el reservorio vacío y 4 no tienen reservorio, y decide qué coordinar." |
-| 2:35 | **Diego** | Abre **6 reportes relacionados**. | "No es solo agua. KUSICHAT junta reportes parecidos, y Diego decide. No diagnostica." |
+| 2:35 | **Diego** | Abre **6 reportes relacionados** y pulsa **Proponer visita a la cooperativa**. | "No es solo agua. Al superar el umbral, KUSICHAT sugiere una visita y Diego decide. No diagnostica." |
 
 Cierre: "Una llamada ayuda a una persona. KUSICHAT permite entender a muchas y organizar su atención."
 
@@ -95,6 +95,7 @@ Tres niveles de valor de los datos: memoria individual (implementada), inteligen
 - **Número nuevo.** Si alguien se registra en el sector Bajo con el aviso vigente, recibe el aviso y el total pasa a 41, porque es una parcela afectada más.
 - **Orden de la bandeja.** Prioridad y turno de riego más próximo. Sin alternativa y con turno hoy o mañana es prioridad alta; con turno posterior, media. Sin turno confirmado va como alta. Es una regla operativa, no agronómica.
 - **Respuestas escritas.** KUSI reconoce frases cortas de agua y seguimiento, sin IA, como "no tengo agua" o "ya regué". "No tengo agua" contesta las dos preguntas a la vez. Si no hay certeza, no adivina y pide usar los botones.
+- **Visita a la cooperativa (R-VIS-01).** Se sugiere con 5 o más reportes parecidos abiertos en 7 días, o 3 o más en un sector. Es un umbral inicial, por ajustar con el especialista. Diego propone para el día siguiente a las 9:00 a. m. y Lucía confirma. No avisa a los productores ni da la visita por realizada.
 - **Borrador de Diego.** Trae un texto neutro para ganar tiempo en la demo. No sugiere ninguna solución.
 - **Corrida de otro día.** Al abrir la demo en un día distinto, arranca de nuevo, para que "mañana" no apunte a una fecha pasada.
 

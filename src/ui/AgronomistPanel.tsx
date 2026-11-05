@@ -15,6 +15,7 @@ import { CaseDetail } from './CaseDetail';
 import { Comparar } from './Comparar';
 import { ESTADO_CASO, PRIORIDAD, TEMA } from './etiquetas';
 import { ReportesRelacionados } from './ReportesRelacionados';
+import { VisitaCooperativa } from './VisitaCooperativa';
 
 const PERFIL = 'especialista';
 const GRUPO = 'reportes';
@@ -95,6 +96,8 @@ function Bandeja({ casoId, onAbrir }: { casoId: string | null; onAbrir: (id: str
           {todos ? 'Ver por atender' : 'Ver todos'}
         </button>
       </div>
+
+      {!todos && <VisitaCooperativa />}
 
       {!todos && reportes.casos.length > 0 && (
         <button

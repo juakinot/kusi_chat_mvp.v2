@@ -7,6 +7,7 @@ import {
   aplicar,
   cambiarReservorio,
   cerrarCaso,
+  confirmarVisita,
   fechaLocal,
   iniciarConsulta,
   marcarEnRevision,
@@ -15,13 +16,14 @@ import {
   procesarEvento,
   procesarRespuesta,
   procesarTextoLibre,
+  proponerVisita,
   responderComoAgronomo,
   revisarAgenda,
 } from '../engine/engine';
 import type { Perfil } from '../engine/permisos';
-import type { Estado, NecesidadId, ReservorioEstado } from '../engine/types';
+import type { Estado, NecesidadId, ReservorioEstado, Tema } from '../engine/types';
 
-const CLAVE = 'kusichat-2-v2';
+const CLAVE = 'kusichat-2-v3';
 
 export type Accion =
   | { type: 'AVISO_CAUDAL' }
@@ -41,6 +43,8 @@ export type Accion =
   | { type: 'RESPONDER_AGRONOMO'; casoId: string; texto: string; seguimiento?: string; perfil: Perfil }
   | { type: 'CERRAR_CASO'; casoId: string; perfil: Perfil }
   | { type: 'COORDINAR'; necesidad: NecesidadId; detalle: string; perfil: Perfil }
+  | { type: 'PROPONER_VISITA'; tema: Tema; perfil: Perfil }
+  | { type: 'CONFIRMAR_VISITA'; visitaId: string; perfil: Perfil }
   | { type: 'TICK' };
 
 function reducer(e: Estado, a: Accion): Estado {
@@ -80,6 +84,10 @@ function reducer(e: Estado, a: Accion): Estado {
       return aplicar(e, cerrarCaso(e, a.casoId, ahora, a.perfil));
     case 'COORDINAR':
       return aplicar(e, anotarCoordinacion(e, a.necesidad, a.detalle, ahora, a.perfil));
+    case 'PROPONER_VISITA':
+      return aplicar(e, proponerVisita(e, a.tema, ahora, a.perfil));
+    case 'CONFIRMAR_VISITA':
+      return aplicar(e, confirmarVisita(e, a.visitaId, ahora, a.perfil));
     case 'TICK':
       return { ...e, ahora: new Date(new Date(ahora).getTime() + 1000).toISOString() };
   }

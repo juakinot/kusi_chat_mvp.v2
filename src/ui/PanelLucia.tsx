@@ -149,6 +149,38 @@ export function PanelLucia() {
         </ul>
       </section>
 
+      {(v.alertas.length > 0 || v.visitas.length > 0) && (
+        <section className="rounded-2xl bg-white p-4 sm:p-6">
+          <h2 className="font-titulo text-xl font-bold tracking-tight">Visita a la cooperativa</h2>
+          <ul className="mt-2 space-y-3 text-[15px]">
+            {v.alertas.map((a) => (
+              <li key={a}>
+                <p className="font-semibold">{a}</p>
+                <p className="text-sm text-stone-600">Superan el umbral. Diego decide si propone una visita.</p>
+              </li>
+            ))}
+            {v.visitas.map((x) => (
+              <li key={x.id}>
+                <p className="font-semibold">{x.detalle}</p>
+                {x.confirmada ? (
+                  <p className="text-sm font-semibold text-oliva-oscuro">Visita confirmada: {x.fecha}</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-stone-600">Diego propone ir a la cooperativa {x.fecha}</p>
+                    <button
+                      onClick={() => dispatch({ type: 'CONFIRMAR_VISITA', visitaId: x.id, perfil: 'organizacion' })}
+                      className="mt-2 min-h-11 rounded-lg bg-oliva-oscuro px-4 text-sm font-semibold text-white hover:bg-oliva"
+                    >
+                      Confirmar visita
+                    </button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {v.notas.length > 0 && (
         <section className="rounded-2xl bg-white p-4 sm:p-6">
           <h2 className="font-titulo text-xl font-bold tracking-tight">Para coordinar</h2>

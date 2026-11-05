@@ -1,4 +1,4 @@
-import { diaRelativo, diasHasta, formatoHora, ordenarCasos } from './engine';
+import { alertasVisita, diaRelativo, diasHasta, formatoHora, ordenarCasos } from './engine';
 import { puede, type Perfil } from './permisos';
 import type {
   Barrera,
@@ -161,6 +161,8 @@ export interface VistaOrganizacion {
   frase: string;
   necesidades: Necesidad[];
   notas: NotaCoordinacion[];
+  alertas: string[]; // superan el umbral y Diego todavía no propuso visita
+  visitas: { id: string; detalle: string; fecha: string; confirmada: boolean }[];
 }
 
 const parcelas = (n: number) => `${n} ${n === 1 ? 'parcela' : 'parcelas'}`;
@@ -234,6 +236,15 @@ export function vistaOrganizacion(estado: Estado): VistaOrganizacion {
     frase: `${faltan} y ${callan}.`,
     necesidades: necesidades.filter((n) => n.cantidad > 0),
     notas: estado.coordinacion,
+    alertas: alertasVisita(estado)
+      .filter((a) => !estado.visitas.some((v) => v.tema === a.tema))
+      .map((a) => a.texto),
+    visitas: estado.visitas.map((v) => ({
+      id: v.id,
+      detalle: v.detalle,
+      fecha: `${diaRelativo(v.fecha, estado.ahora)} ${formatoHora(v.fecha)}`,
+      confirmada: v.estado === 'confirmada',
+    })),
   };
 }
 

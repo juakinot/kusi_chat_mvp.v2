@@ -184,6 +184,15 @@ export interface NotaCoordinacion {
   hora: string;
 }
 
+/** Propuesta de Diego para ir a la cooperativa. Es un acuerdo registrado, no una visita ya hecha. */
+export interface Visita {
+  id: string;
+  tema: Tema;
+  detalle: string;
+  fecha: string;
+  estado: 'propuesta' | 'confirmada';
+}
+
 /** Todo el estado de la demo. Serializable: en el piloto vive en la base de datos. */
 export interface Estado {
   inicio: string; // hora simulada al reiniciar la demo
@@ -199,6 +208,7 @@ export interface Estado {
   auditoria: EntradaAuditoria[];
   registro: Registro;
   coordinacion: NotaCoordinacion[];
+  visitas: Visita[];
   lineaBase?: ResumenAgua; // cómo arrancó el escenario, para mostrar qué cambió
 }
 

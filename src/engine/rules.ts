@@ -7,6 +7,9 @@ const VIGENCIA = {
   vigenteHasta: '2030-12-31T23:59:59-05:00',
 };
 
+/** Umbral inicial, por ajustar con el especialista durante el piloto. */
+export const UMBRAL_VISITA = { total: 5, sector: 3, dias: 7 };
+
 /** Las reglas son datos: se leen, se suspenden y se auditan sin tocar el motor. */
 export const REGLAS: Regla[] = [
   {
@@ -58,6 +61,15 @@ export const REGLAS: Regla[] = [
     ...VIGENCIA,
     descripcion:
       'Si el productor reporta cambios en sus olivos, un daño o menos agua, se abre un caso para el especialista. KUSI no diagnostica. Si hay dos reportes iguales en un sector, los casos suben a prioridad alta.',
+  },
+  {
+    id: 'R-VIS-01',
+    version: 1,
+    nombre: 'Visita a la cooperativa',
+    aprobadaPor: SIN_VALIDACION,
+    activa: true,
+    ...VIGENCIA,
+    descripcion: `Si hay ${UMBRAL_VISITA.total} o más reportes parecidos abiertos en ${UMBRAL_VISITA.dias} días, o ${UMBRAL_VISITA.sector} o más en un mismo sector, se sugiere que el especialista visite la cooperativa. Es una señal para revisar, no un diagnóstico.`,
   },
   {
     id: 'R-AGE-01',

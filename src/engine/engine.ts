@@ -18,6 +18,7 @@ import type {
   Sector,
   Tema,
 } from './types';
+import { UMBRAL_VISITA } from './rules';
 import { puede, type Perfil, type Permiso } from './permisos';
 
 export const SISTEMA = 'Sistema';
@@ -1443,6 +1444,79 @@ export function alternarRegla(estado: Estado, reglaId: string, ahora: string, pe
     datosUsados: { activa },
     resultado: `Regla ${r.id} ${activa ? 'reactivada' : 'suspendida'}`,
     responsable: INGENIERO,
+  });
+  return t.fin();
+}
+
+// ---------- Visita a la cooperativa ----------
+
+export interface AlertaVisita {
+  tema: Tema;
+  total: number;
+  sector: Sector | null; // el sector con más reportes
+  enSector: number;
+  texto: string;
+}
+
+const TEMAS_REPORTE: Tema[] = ['plaga', 'dano', 'agua'];
+
+/** R-VIS-01: solo cuenta reportes parecidos y abiertos. No afirma una causa común. */
+export function alertasVisita(estado: Estado): AlertaVisita[] {
+  if (reglaNoDisponible(regla(estado, 'R-VIS-01'), estado.ahora)) return [];
+  const desde = new Date(estado.ahora).getTime() - UMBRAL_VISITA.dias * 86_400_000;
+
+  return TEMAS_REPORTE.flatMap((tema) => {
+    const reportes = estado.casos.filter(
+      (c) =>
+        c.tema === tema &&
+        c.eventoId === SIN_EVENTO &&
+        c.estado !== 'cerrado' &&
+        !c.paso &&
+        new Date(c.creadoEn).getTime() >= desde,
+    );
+    const porSector = new Map<Sector, number>();
+    for (const c of reportes) {
+      const sector = estado.parcelas.find((p) => p.id === c.parcelaId)?.sector;
+      if (sector) porSector.set(sector, (porSector.get(sector) ?? 0) + 1);
+    }
+    const [sector, enSector] = [...porSector].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    if (reportes.length < UMBRAL_VISITA.total && enSector < UMBRAL_VISITA.sector) return [];
+    const texto = `${reportes.length} reportes de ${ETIQUETA_REPORTE[tema]}${sector ? `, ${enSector} del sector ${sector}` : ''}`;
+    return [{ tema, total: reportes.length, sector, enSector, texto }];
+  });
+}
+
+export function proponerVisita(estado: Estado, tema: Tema, ahora: string, perfil: Perfil = 'especialista'): Resultado {
+  const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'proponer_visita')) return t.fin();
+  const alerta = alertasVisita(estado).find((a) => a.tema === tema);
+  if (!alerta || estado.visitas.some((v) => v.tema === tema)) return t.fin();
+  const r = regla(estado, 'R-VIS-01');
+  const fecha = enDia(ahora, 1, 9);
+  t.set({ visitas: [...t.estado.visitas, { id: t.nuevoId('V'), tema, detalle: alerta.texto, fecha, estado: 'propuesta' }] });
+  t.audit({
+    tipo: 'regla',
+    reglaId: r.id,
+    reglaVersion: r.version,
+    datosUsados: { tema, total: alerta.total, sector: alerta.sector, enSector: alerta.enSector },
+    resultado: `Visita a la cooperativa propuesta: ${alerta.texto}`,
+    responsable: INGENIERO,
+  });
+  return t.fin();
+}
+
+/** La organización acepta la fecha. No avisa a los productores ni da la visita por realizada. */
+export function confirmarVisita(estado: Estado, visitaId: string, ahora: string, perfil: Perfil = 'organizacion'): Resultado {
+  const t = transaccion(estado, ahora);
+  if (sinPermiso(t, perfil, 'confirmar_visita')) return t.fin();
+  const visita = estado.visitas.find((v) => v.id === visitaId);
+  if (!visita || visita.estado === 'confirmada') return t.fin();
+  t.set({ visitas: t.estado.visitas.map((v) => (v.id === visitaId ? { ...v, estado: 'confirmada' } : v)) });
+  t.audit({
+    tipo: 'configuracion',
+    datosUsados: { visitaId },
+    resultado: `Visita a la cooperativa confirmada: ${visita.detalle}`,
+    responsable: ORGANIZACION,
   });
   return t.fin();
 }

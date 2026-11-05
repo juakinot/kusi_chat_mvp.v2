@@ -72,6 +72,7 @@ export function crearEstadoInicial(inicio: string = inicioDemo()): Estado {
     auditoria: [],
     registro: { paso: 'inicio' },
     coordinacion: [],
+    visitas: [],
   };
 }
 

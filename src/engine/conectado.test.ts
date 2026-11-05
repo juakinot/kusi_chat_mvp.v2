@@ -4,13 +4,16 @@ import {
   adelantarTiempo,
   alternarRegla,
   anotarCoordinacion,
+  alertasVisita,
   aplicar,
   cerrarCaso,
+  confirmarVisita,
   marcarEnRevision,
   pedirPersona,
   procesarEvento,
   procesarRespuesta,
   procesarTextoLibre,
+  proponerVisita,
   responderComoAgronomo,
   TEXTO_SOLO_BOTONES,
 } from './engine';
@@ -438,5 +441,74 @@ describe('respuestas escritas', () => {
     escribir('no tengo agua, necesito una persona');
     expect(casoRosa().situacion).toBeUndefined();
     expect(casoRosa().motivo).toBe('El productor pidió hablar con una persona');
+  });
+});
+
+describe('visita a la cooperativa', () => {
+  const reportes = () => estado.casos.filter((c) => c.tema === 'plaga');
+  const cerrar = (n: number) => reportes().slice(0, n).forEach((c) => correr((e) => cerrarCaso(e, c.id, e.ahora)));
+
+  it('seis reportes, tres del sector Alto, superan el umbral', () => {
+    expect(alertasVisita(estado)).toEqual([
+      {
+        tema: 'plaga',
+        total: 6,
+        sector: 'Alto',
+        enSector: 3,
+        texto: '6 reportes de cambios en hojas o ramas, 3 del sector Alto',
+      },
+    ]);
+  });
+
+  it('tres en un mismo sector bastan, aunque el total baje de cinco', () => {
+    const lejanos = reportes().filter((c) => !['PA-JUAN', 'PA-ELENA', 'PA-MATEO'].includes(c.parcelaId));
+    lejanos.forEach((c) => correr((e) => cerrarCaso(e, c.id, e.ahora)));
+    expect(alertasVisita(estado)[0]).toMatchObject({ total: 3, enSector: 3 });
+  });
+
+  it('por debajo de los dos umbrales no sugiere visita', () => {
+    cerrar(4);
+    expect(alertasVisita(estado)).toEqual([]);
+  });
+
+  it('los reportes de hace más de 7 días no cuentan', () => {
+    estado = { ...estado, ahora: new Date(new Date(estado.ahora).getTime() + 8 * 86_400_000).toISOString() };
+    expect(alertasVisita(estado)).toEqual([]);
+  });
+
+  it('con la regla suspendida no sugiere ni deja proponer', () => {
+    correr((e) => alternarRegla(e, 'R-VIS-01', e.ahora));
+    expect(alertasVisita(estado)).toEqual([]);
+    correr((e) => proponerVisita(e, 'plaga', e.ahora));
+    expect(estado.visitas).toEqual([]);
+  });
+
+  it('Diego propone una vez, Lucía confirma y nadie recibe mensajes', () => {
+    const mensajes = estado.mensajes;
+    correr((e) => proponerVisita(e, 'plaga', e.ahora));
+    correr((e) => proponerVisita(e, 'plaga', e.ahora));
+    expect(estado.visitas).toHaveLength(1);
+    expect(estado.visitas[0]).toMatchObject({ estado: 'propuesta', fecha: MANANA });
+    expect(vistaOrganizacion(estado).alertas).toEqual([]);
+    expect(vistaOrganizacion(estado).visitas[0]).toMatchObject({ confirmada: false, fecha: 'mañana 9:00 a. m.' });
+
+    correr((e) => confirmarVisita(e, estado.visitas[0].id, e.ahora));
+    expect(vistaOrganizacion(estado).visitas[0].confirmada).toBe(true);
+    expect(estado.mensajes).toBe(mensajes);
+  });
+
+  it('cada perfil solo hace su parte', () => {
+    correr((e) => proponerVisita(e, 'plaga', e.ahora, 'organizacion'));
+    expect(estado.visitas).toEqual([]);
+    expect(estado.auditoria.at(-1)).toMatchObject({ tipo: 'bloqueo' });
+    correr((e) => proponerVisita(e, 'plaga', e.ahora));
+    correr((e) => confirmarVisita(e, estado.visitas[0].id, e.ahora, 'especialista'));
+    expect(estado.visitas[0].estado).toBe('propuesta');
+  });
+
+  it('Lucía ve la alerta sin nombres ni temas internos', () => {
+    const vista = JSON.stringify(vistaOrganizacion(estado));
+    expect(vista).toContain('6 reportes de cambios en hojas o ramas, 3 del sector Alto');
+    expect(vista).not.toMatch(/Juan|Elena|Mateo|plaga/);
   });
 });
